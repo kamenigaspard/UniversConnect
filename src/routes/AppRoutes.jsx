@@ -28,7 +28,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import CreatePost from "../pages/CreatePost";
 import LandingPage from "../pages/LandingPage";
 import Login from "../pages/auth/LoginPage";
-import Signup from "../pages/auth/SignupPage";
+import Signup from "../pages/auth/SignUpPage";
 import ForgotPasswordPage
   from "../pages/auth/ForgotPasswordPage";
 //import VerifyEmail from "../pages/VerifyEmail";
