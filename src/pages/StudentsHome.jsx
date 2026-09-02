@@ -11,13 +11,57 @@
 // 5. Automatically loading more posts when the student scrolls.
 // 6. Displaying likes and comments through PostCard.
 // 7. Providing the bottom navigation.
+//
+// IMPORTANT SPOTLIGHT FIX:
+// ------------------------------------------------------------
+// admin_spotlights contains more than one relationship to
+// profiles.
+//
+// For example:
+//
+// admin_spotlights.profile_id  -> profiles.id
+// admin_spotlights.created_by  -> profiles.id
+//
+// Therefore, Supabase cannot safely use:
+//
+// profiles(...)
+//
+// inside the admin_spotlights query without knowing which
+// relationship should be used.
+//
+// We solve this by:
+//
+// 1. Loading admin_spotlights separately.
+// 2. Collecting profile_id values.
+// 3. Loading the matching profiles separately.
+// 4. Combining spotlight + profile in JavaScript.
+//
+// The final object looks like:
+//
+// {
+//   id: "...",
+//   profile_id: "...",
+//   title: "...",
+//   description: "...",
+//   image_url: "...",
+//   profile: {
+//      id: "...",
+//      full_name: "...",
+//      username: "...",
+//      avatar_url: "...",
+//      role: "..."
+//   }
+// }
 // ============================================================
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   Bell,
-  Bookmark,
   ChevronLeft,
   ChevronRight,
   Home,
@@ -32,6 +76,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../contexts/AuthContext";
+
 import { supabase } from "../lib/supabase";
 
 import PostCard from "../components/PostCard";
@@ -42,145 +87,141 @@ import PostCard from "../components/PostCard";
 // ============================================================
 
 const StudentHome = () => {
-  // ----------------------------------------------------------
-  // React Router navigation
-  // ----------------------------------------------------------
+
+  // ==========================================================
+  // ROUTER
+  // ==========================================================
 
   const navigate = useNavigate();
 
 
-  // ----------------------------------------------------------
-  // Authentication context
+  // ==========================================================
+  // AUTHENTICATION
+  // ==========================================================
   //
-  // user    = currently authenticated Supabase user
-  // profile = profile information from our profiles table
-  // ----------------------------------------------------------
+  // user    = authenticated Supabase user
+  // profile = user's profile from the profiles table
+  // ==========================================================
 
-  const { user, profile } = useAuth();
+  const {
+    user,
+    profile,
+  } = useAuth();
 
 
   // ==========================================================
   // SCHOOL STATE
   // ==========================================================
 
-  const [school, setSchool] = useState(null);
+  const [school, setSchool] =
+    useState(null);
 
-  const [schoolLoading, setSchoolLoading] = useState(true);
+  const [schoolLoading, setSchoolLoading] =
+    useState(true);
 
-  const [schoolError, setSchoolError] = useState("");
+  const [schoolError, setSchoolError] =
+    useState("");
 
 
   // ==========================================================
   // ADMIN SPOTLIGHT STATE
   // ==========================================================
 
-  const [spotlights, setSpotlights] = useState([]);
+  const [spotlights, setSpotlights] =
+    useState([]);
 
-  const [currentSpotlight, setCurrentSpotlight] = useState(0);
+  const [currentSpotlight, setCurrentSpotlight] =
+    useState(0);
 
 
   // ==========================================================
   // POSTS / FEED STATE
   // ==========================================================
 
-  // The posts currently displayed in the feed.
-  const [posts, setPosts] = useState([]);
+  const [posts, setPosts] =
+    useState([]);
 
 
-  // ----------------------------------------------------------
-  // Number of posts loaded at a time.
-  //
-  // Example:
-  // First request  = posts 1 - 25
-  // Second request = posts 26 - 50
-  // Third request  = posts 51 - 75
-  // ----------------------------------------------------------
+  // ==========================================================
+  // PAGINATION
+  // ==========================================================
 
+  // Number of posts loaded per request.
   const PAGE_SIZE = 25;
 
 
-  // ----------------------------------------------------------
-  // Current page number.
+  // Current page.
   //
-  // Page 0 = first 25 posts
-  // Page 1 = next 25 posts
-  // Page 2 = next 25 posts
-  // ----------------------------------------------------------
-
-  const [page, setPage] = useState(0);
-
-
-  // ----------------------------------------------------------
-  // Loading state for the first batch of posts.
-  // ----------------------------------------------------------
-
-  const [postsLoading, setPostsLoading] = useState(true);
-
-
-  // ----------------------------------------------------------
-  // Loading state for additional posts.
-  //
-  // This is different from postsLoading because we do not want
-  // to replace the existing feed with a large loading screen
-  // when loading page 2, 3, 4, etc.
-  // ----------------------------------------------------------
-
-  const [loadingMore, setLoadingMore] = useState(false);
-
-
-  // ----------------------------------------------------------
-  // Determines whether more posts are available.
-  //
-  // true  = there may be more posts
-  // false = we have reached the end of the feed
-  // ----------------------------------------------------------
-
-  const [hasMorePosts, setHasMorePosts] = useState(true);
-
-
-  // ----------------------------------------------------------
-  // Stores any feed loading error.
-  // ----------------------------------------------------------
-
-  const [postsError, setPostsError] = useState("");
-
-
-  // ----------------------------------------------------------
-  // Current authenticated user's ID.
-  //
-  // This is passed to PostCard so the component knows which
-  // user is currently viewing/liking/commenting.
-  // ----------------------------------------------------------
-
-  const [currentUserId, setCurrentUserId] = useState(null);
+  // Page 0 = posts 1 - 25
+  // Page 1 = posts 26 - 50
+  // Page 2 = posts 51 - 75
+  const [page, setPage] =
+    useState(0);
 
 
   // ==========================================================
-  // GENERAL PAGE LOADING STATE
+  // POST LOADING STATES
   // ==========================================================
 
-  const [loading, setLoading] = useState(true);
+  const [postsLoading, setPostsLoading] =
+    useState(true);
+
+  const [loadingMore, setLoadingMore] =
+    useState(false);
+
+  const [hasMorePosts, setHasMorePosts] =
+    useState(true);
+
+  const [postsError, setPostsError] =
+    useState("");
+
+
+  // ==========================================================
+  // CURRENT USER ID
+  // ==========================================================
+
+  const [currentUserId, setCurrentUserId] =
+    useState(
+      user?.id || null
+    );
+
+
+  // ==========================================================
+  // GENERAL PAGE LOADING
+  // ==========================================================
+
+  const [loading, setLoading] =
+    useState(true);
 
 
   // ==========================================================
   // INFINITE SCROLL REFS
   // ==========================================================
 
-  // This element will be placed below the feed.
-  //
-  // When it becomes visible on the screen, we load another
-  // 25 posts.
-  const loadMoreRef = useRef(null);
+  // Element at the bottom of the feed.
+  const loadMoreRef =
+    useRef(null);
 
 
-  // ----------------------------------------------------------
-  // Prevents multiple simultaneous requests.
-  //
-  // IntersectionObserver can fire multiple times very quickly.
-  // This ref prevents duplicate Supabase requests.
-  // ----------------------------------------------------------
+  // Prevents multiple simultaneous
+  // pagination requests.
+  const loadingMoreRef =
+    useRef(false);
 
-  const loadingMoreRef = useRef(false);
+
+  // ==========================================================
+  // KEEP CURRENT USER ID IN SYNC WITH AUTH CONTEXT
+  // ==========================================================
+
+  useEffect(() => {
+
+    if (user?.id) {
+
+      setCurrentUserId(user.id);
+
+    }
+
+  }, [user]);
 
 
   // ==========================================================
@@ -188,17 +229,23 @@ const StudentHome = () => {
   // ==========================================================
 
   useEffect(() => {
-    // We cannot load school/posts until the profile exists.
+
+    // --------------------------------------------------------
+    // We cannot load school-specific information until the
+    // user's profile is available.
+    // --------------------------------------------------------
+
     if (!profile) {
       return;
     }
 
 
     // --------------------------------------------------------
-    // A student must belong to a school.
+    // The user must belong to a school.
     // --------------------------------------------------------
 
     if (!profile.school_id) {
+
       setLoading(false);
 
       setSchoolLoading(false);
@@ -208,18 +255,19 @@ const StudentHome = () => {
       );
 
       return;
+
     }
 
 
     // --------------------------------------------------------
-    // Load the authenticated user.
+    // Load current authenticated user.
     // --------------------------------------------------------
 
     getCurrentUser();
 
 
     // --------------------------------------------------------
-    // Load the first 25 posts.
+    // Load first page of posts.
     // --------------------------------------------------------
 
     loadPosts(0);
@@ -233,14 +281,14 @@ const StudentHome = () => {
 
 
     // --------------------------------------------------------
-    // Load administrator spotlight information.
+    // Load administrator spotlight.
     // --------------------------------------------------------
 
     loadSpotlights();
 
 
     // --------------------------------------------------------
-    // Load other home-page information.
+    // Load other home data.
     // --------------------------------------------------------
 
     loadHomeData();
@@ -253,9 +301,13 @@ const StudentHome = () => {
   // ==========================================================
 
   const getCurrentUser = async () => {
+
     try {
+
       const {
-        data: { user: authenticatedUser },
+        data: {
+          user: authenticatedUser,
+        },
         error,
       } = await supabase.auth.getUser();
 
@@ -266,68 +318,59 @@ const StudentHome = () => {
 
 
       if (authenticatedUser) {
-        setCurrentUserId(authenticatedUser.id);
+
+        setCurrentUserId(
+          authenticatedUser.id
+        );
+
       }
 
     } catch (error) {
+
       console.error(
         "Error getting current user:",
         error
       );
+
     }
+
   };
 
 
   // ==========================================================
   // LOAD POSTS
-  //
-  // This function loads 25 posts at a time.
-  //
-  // pageNumber = 0
-  //      Loads the first 25 posts.
-  //
-  // pageNumber = 1
-  //      Loads posts 26 - 50.
-  //
-  // pageNumber = 2
-  //      Loads posts 51 - 75.
   // ==========================================================
 
-  const loadPosts = async (pageNumber = 0) => {
+  const loadPosts = async (
+    pageNumber = 0
+  ) => {
 
     // --------------------------------------------------------
-    // Calculate the database range.
-    //
-    // Example for page 0:
-    // from = 0
-    // to   = 24
-    //
-    // Example for page 1:
-    // from = 25
-    // to   = 49
+    // Calculate pagination range.
     // --------------------------------------------------------
 
-    const from = pageNumber * PAGE_SIZE;
+    const from =
+      pageNumber * PAGE_SIZE;
 
-    const to = from + PAGE_SIZE - 1;
+    const to =
+      from + PAGE_SIZE - 1;
 
 
     // --------------------------------------------------------
-    // First page uses the main loading indicator.
+    // First page.
     // --------------------------------------------------------
 
     if (pageNumber === 0) {
 
       setPostsLoading(true);
 
-      // Reset pagination when starting over.
       setHasMorePosts(true);
 
     }
 
+
     // --------------------------------------------------------
-    // Additional pages use the small "Loading more posts..."
-    // indicator at the bottom.
+    // Additional pages.
     // --------------------------------------------------------
 
     else {
@@ -350,7 +393,9 @@ const StudentHome = () => {
       // ======================================================
 
       const {
-        data: { user: authenticatedUser },
+        data: {
+          user: authenticatedUser,
+        },
         error: userError,
       } = await supabase.auth.getUser();
 
@@ -361,14 +406,18 @@ const StudentHome = () => {
 
 
       if (!authenticatedUser) {
+
         throw new Error(
           "You must be logged in to view the feed."
         );
+
       }
 
 
-      // Store current user ID.
-      setCurrentUserId(authenticatedUser.id);
+      // Store authenticated user ID.
+      setCurrentUserId(
+        authenticatedUser.id
+      );
 
 
       // ======================================================
@@ -377,17 +426,10 @@ const StudentHome = () => {
 
       const {
         data: postsData,
-        error: postsError,
+        error: postsQueryError,
       } = await supabase
 
         .from("posts")
-
-        // ----------------------------------------------------
-        // Select post information together with:
-        //
-        // profiles
-        // schools
-        // ----------------------------------------------------
 
         .select(`
           id,
@@ -416,42 +458,53 @@ const StudentHome = () => {
         `)
 
         // ----------------------------------------------------
-        // Only show posts that have not been deleted.
+        // Only show posts that are not deleted.
         // ----------------------------------------------------
 
-        .eq("is_deleted", false)
+        .eq(
+          "is_deleted",
+          false
+        )
 
         // ----------------------------------------------------
         // Newest posts first.
         // ----------------------------------------------------
 
-        .order("created_at", {
-          ascending: false,
-        })
+        .order(
+          "created_at",
+          {
+            ascending: false,
+          }
+        )
 
         // ----------------------------------------------------
-        // Load only the current 25-post page.
+        // Load current page.
         // ----------------------------------------------------
 
-        .range(from, to);
+        .range(
+          from,
+          to
+        );
 
 
-      if (postsError) {
-        throw postsError;
+      if (postsQueryError) {
+        throw postsQueryError;
       }
 
 
-      // Make sure we always have an array.
-      const currentPosts = postsData || [];
+      // Always work with an array.
+      const currentPosts =
+        postsData || [];
 
 
       // ======================================================
       // DETERMINE WHETHER MORE POSTS EXIST
       // ======================================================
 
-      // If Supabase returned fewer than 25 posts, we have
-      // reached the end of the feed.
-      if (currentPosts.length < PAGE_SIZE) {
+      if (
+        currentPosts.length <
+        PAGE_SIZE
+      ) {
 
         setHasMorePosts(false);
 
@@ -466,9 +519,10 @@ const StudentHome = () => {
       // GET POST IDS
       // ======================================================
 
-      const postIds = currentPosts.map(
-        (post) => post.id
-      );
+      const postIds =
+        currentPosts.map(
+          (post) => post.id
+        );
 
 
       // ======================================================
@@ -487,7 +541,9 @@ const StudentHome = () => {
 
           .from("likes")
 
-          .select("post_id")
+          .select(
+            "post_id"
+          )
 
           .eq(
             "user_id",
@@ -505,22 +561,23 @@ const StudentHome = () => {
         }
 
 
-        userLikes = data || [];
+        userLikes =
+          data || [];
 
       }
 
 
-      // ------------------------------------------------------
-      // Convert user's liked posts into a Set.
-      //
-      // Set makes checking whether a post is liked very fast.
-      // ------------------------------------------------------
+      // ======================================================
+      // CREATE SET OF LIKED POST IDS
+      // ======================================================
 
-      const likedPostIds = new Set(
-        userLikes.map(
-          (like) => like.post_id
-        )
-      );
+      const likedPostIds =
+        new Set(
+          userLikes.map(
+            (like) =>
+              like.post_id
+          )
+        );
 
 
       // ======================================================
@@ -539,7 +596,9 @@ const StudentHome = () => {
 
           .from("likes")
 
-          .select("post_id")
+          .select(
+            "post_id"
+          )
 
           .in(
             "post_id",
@@ -552,13 +611,23 @@ const StudentHome = () => {
         }
 
 
-        // Count likes for each post.
-        (allLikes || []).forEach((like) => {
+        // Count every like belonging to each post.
+        (
+          allLikes || []
+        ).forEach(
+          (like) => {
 
-          likeCounts[like.post_id] =
-            (likeCounts[like.post_id] || 0) + 1;
+            likeCounts[
+              like.post_id
+            ] =
+              (
+                likeCounts[
+                  like.post_id
+                ] || 0
+              ) + 1;
 
-        });
+          }
+        );
 
       }
 
@@ -579,7 +648,9 @@ const StudentHome = () => {
 
           .from("comments")
 
-          .select("post_id")
+          .select(
+            "post_id"
+          )
 
           .in(
             "post_id",
@@ -598,12 +669,22 @@ const StudentHome = () => {
 
 
         // Count comments for every post.
-        (allComments || []).forEach((comment) => {
+        (
+          allComments || []
+        ).forEach(
+          (comment) => {
 
-          commentCounts[comment.post_id] =
-            (commentCounts[comment.post_id] || 0) + 1;
+            commentCounts[
+              comment.post_id
+            ] =
+              (
+                commentCounts[
+                  comment.post_id
+                ] || 0
+              ) + 1;
 
-        });
+          }
+        );
 
       }
 
@@ -613,46 +694,66 @@ const StudentHome = () => {
       // ======================================================
 
       const formattedPosts =
-        currentPosts.map((post) => ({
+        currentPosts.map(
+          (post) => ({
 
-          ...post,
+            ...post,
 
-          // Whether the current user liked this post.
-          isLiked: likedPostIds.has(post.id),
+            // Whether current user liked this post.
+            isLiked:
+              likedPostIds.has(
+                post.id
+              ),
 
-          // Number of likes.
-          likeCount:
-            likeCounts[post.id] || 0,
+            // Number of likes.
+            likeCount:
+              likeCounts[
+                post.id
+              ] || 0,
 
-          // Number of comments.
-          commentCount:
-            commentCounts[post.id] || 0,
+            // Number of comments.
+            commentCount:
+              commentCounts[
+                post.id
+              ] || 0,
 
-        }));
+          })
+        );
 
 
       // ======================================================
       // UPDATE FEED
       // ======================================================
 
-      if (pageNumber === 0) {
+      if (
+        pageNumber === 0
+      ) {
 
-        // First page replaces the current feed.
-        setPosts(formattedPosts);
+        // Replace feed with first page.
+        setPosts(
+          formattedPosts
+        );
 
       } else {
 
-        // Additional pages are appended to the existing feed.
-        setPosts((previousPosts) => [
-          ...previousPosts,
-          ...formattedPosts,
-        ]);
+        // Append additional posts.
+        setPosts(
+          (previousPosts) => [
+
+            ...previousPosts,
+
+            ...formattedPosts,
+
+          ]
+        );
 
       }
 
 
-      // Store the current page number.
-      setPage(pageNumber);
+      // Save current page.
+      setPage(
+        pageNumber
+      );
 
 
     } catch (error) {
@@ -671,12 +772,12 @@ const StudentHome = () => {
 
     } finally {
 
-      // Stop the loading indicators.
       setPostsLoading(false);
 
       setLoadingMore(false);
 
-      loadingMoreRef.current = false;
+      loadingMoreRef.current =
+        false;
 
     }
 
@@ -685,30 +786,24 @@ const StudentHome = () => {
 
   // ==========================================================
   // INFINITE SCROLL
-  //
-  // IntersectionObserver watches the element at the bottom
-  // of the feed.
-  //
-  // When the user gets close to it, another 25 posts are
-  // automatically loaded.
   // ==========================================================
 
   useEffect(() => {
 
-    // If the sentinel does not exist yet, stop.
+    // No sentinel available yet.
     if (!loadMoreRef.current) {
       return;
     }
 
 
-    // If there are no more posts, stop observing.
+    // No more posts.
     if (!hasMorePosts) {
       return;
     }
 
 
     // --------------------------------------------------------
-    // Create the observer.
+    // Create IntersectionObserver.
     // --------------------------------------------------------
 
     const observer =
@@ -716,59 +811,65 @@ const StudentHome = () => {
 
         (entries) => {
 
-          const entry = entries[0];
+          const entry =
+            entries[0];
 
 
-          // The bottom element is not visible yet.
+          // Sentinel is not visible.
           if (!entry.isIntersecting) {
             return;
           }
 
 
-          // Prevent multiple simultaneous requests.
-          if (loadingMoreRef.current) {
+          // Already loading another page.
+          if (
+            loadingMoreRef.current
+          ) {
             return;
           }
 
 
-          // Do not load another page while the first page
-          // is still loading.
+          // First page is still loading.
           if (postsLoading) {
             return;
           }
 
 
-          // Mark loading immediately.
-          loadingMoreRef.current = true;
+          // Prevent duplicate requests.
+          loadingMoreRef.current =
+            true;
 
 
-          // Load the next page.
-          loadPosts(page + 1);
+          // Load next page.
+          loadPosts(
+            page + 1
+          );
 
         },
 
         {
-          // Start loading when the user is approximately
-          // 500px away from the bottom.
-          rootMargin: "500px 0px",
+          rootMargin:
+            "500px 0px",
 
-          threshold: 0,
+          threshold:
+            0,
 
         }
 
       );
 
 
-    // Start observing the sentinel.
-    observer.observe(loadMoreRef.current);
+    // Observe bottom sentinel.
+    observer.observe(
+      loadMoreRef.current
+    );
 
 
-    // --------------------------------------------------------
-    // Clean up the observer when dependencies change.
-    // --------------------------------------------------------
-
+    // Clean up observer.
     return () => {
+
       observer.disconnect();
+
     };
 
   }, [
@@ -825,7 +926,9 @@ const StudentHome = () => {
       }
 
 
-      setSchool(data);
+      setSchool(
+        data
+      );
 
 
     } catch (error) {
@@ -844,7 +947,9 @@ const StudentHome = () => {
 
     } finally {
 
-      setSchoolLoading(false);
+      setSchoolLoading(
+        false
+      );
 
     }
 
@@ -853,6 +958,19 @@ const StudentHome = () => {
 
   // ==========================================================
   // LOAD ADMIN SPOTLIGHTS
+  // ==========================================================
+  //
+  // IMPORTANT:
+  //
+  // We DO NOT use:
+  //
+  // profiles (...)
+  //
+  // inside the admin_spotlights query.
+  //
+  // This prevents the Supabase PGRST201 error caused by
+  // multiple relationships between admin_spotlights and
+  // profiles.
   // ==========================================================
 
   const loadSpotlights = async () => {
@@ -864,9 +982,14 @@ const StudentHome = () => {
 
     try {
 
+      // ======================================================
+      // STEP 1
+      // LOAD SPOTLIGHT RECORDS
+      // ======================================================
+
       const {
-        data,
-        error,
+        data: spotlightData,
+        error: spotlightError,
       } = await supabase
 
         .from("admin_spotlights")
@@ -882,26 +1005,30 @@ const StudentHome = () => {
           is_active,
           starts_at,
           ends_at,
-          created_at,
-
-          profiles (
-            id,
-            full_name,
-            username,
-            avatar_url,
-            role
-          )
+          created_at
         `)
+
+        // ----------------------------------------------------
+        // Only spotlight records belonging to this school.
+        // ----------------------------------------------------
 
         .eq(
           "school_id",
           profile.school_id
         )
 
+        // ----------------------------------------------------
+        // Only active spotlight records.
+        // ----------------------------------------------------
+
         .eq(
           "is_active",
           true
         )
+
+        // ----------------------------------------------------
+        // Display configured order.
+        // ----------------------------------------------------
 
         .order(
           "display_order",
@@ -911,14 +1038,160 @@ const StudentHome = () => {
         );
 
 
-      if (error) {
-        throw error;
+      // ======================================================
+      // CHECK SPOTLIGHT QUERY
+      // ======================================================
+
+      if (spotlightError) {
+
+        throw spotlightError;
+
       }
 
 
-      setSpotlights(data || []);
+      // ======================================================
+      // NO SPOTLIGHTS
+      // ======================================================
 
-      // Make sure the carousel starts from the first item.
+      if (
+        !spotlightData ||
+        spotlightData.length === 0
+      ) {
+
+        setSpotlights([]);
+
+        setCurrentSpotlight(0);
+
+        return;
+
+      }
+
+
+      // ======================================================
+      // STEP 2
+      // COLLECT PROFILE IDS
+      // ======================================================
+      //
+      // profile_id identifies the person displayed in the
+      // spotlight.
+      //
+      // created_by is NOT used here because it identifies
+      // the administrator who created the spotlight record.
+      // ======================================================
+
+      const profileIds = [
+        ...new Set(
+          spotlightData
+            .map(
+              (spotlight) =>
+                spotlight.profile_id
+            )
+            .filter(Boolean)
+        ),
+      ];
+
+
+      // ======================================================
+      // STEP 3
+      // LOAD PROFILES
+      // ======================================================
+
+      let profileData = [];
+
+
+      if (
+        profileIds.length > 0
+      ) {
+
+        const {
+          data,
+          error: profileError,
+        } = await supabase
+
+          .from("profiles")
+
+          .select(`
+            id,
+            full_name,
+            username,
+            avatar_url,
+            bio,
+            role,
+            school_id
+          `)
+
+          .in(
+            "id",
+            profileIds
+          );
+
+
+        if (profileError) {
+
+          throw profileError;
+
+        }
+
+
+        profileData =
+          data || [];
+
+      }
+
+
+      // ======================================================
+      // STEP 4
+      // COMBINE SPOTLIGHT + PROFILE
+      // ======================================================
+
+      const combinedSpotlights =
+        spotlightData.map(
+          (spotlight) => {
+
+            // Find the profile belonging to this spotlight.
+            const matchingProfile =
+              profileData.find(
+                (profileItem) =>
+                  profileItem.id ===
+                  spotlight.profile_id
+              );
+
+
+            return {
+
+              ...spotlight,
+
+              // IMPORTANT:
+              // We now use "profile", singular.
+              //
+              // The UI below will use:
+              //
+              // spotlight.profile?.full_name
+              //
+              // instead of:
+              //
+              // spotlight.profiles.full_name
+
+              profile:
+                matchingProfile || null,
+
+            };
+
+          }
+        );
+
+
+      // ======================================================
+      // STEP 5
+      // SAVE SPOTLIGHTS
+      // ======================================================
+
+      setSpotlights(
+        combinedSpotlights
+      );
+
+
+      // Always start carousel from first spotlight.
       setCurrentSpotlight(0);
 
 
@@ -929,6 +1202,13 @@ const StudentHome = () => {
         error
       );
 
+
+      // Keep the rest of the page working even if spotlight
+      // loading fails.
+      setSpotlights([]);
+
+      setCurrentSpotlight(0);
+
     }
 
   };
@@ -936,23 +1216,19 @@ const StudentHome = () => {
 
   // ==========================================================
   // LOAD HOME DATA
-  //
-  // This function can later be expanded with additional
-  // student-home information.
   // ==========================================================
 
   const loadHomeData = async () => {
 
     try {
 
-      // ------------------------------------------------------
-      // The school is already loaded by loadSchool().
+      // School and spotlight data are loaded separately.
       //
-      // This function currently only controls the general
-      // loading state.
-      // ------------------------------------------------------
+      // This function currently controls the general page
+      // loading state and can be expanded later.
 
       setLoading(false);
+
 
     } catch (error) {
 
@@ -961,6 +1237,7 @@ const StudentHome = () => {
         error
       );
 
+
       setLoading(false);
 
     }
@@ -969,37 +1246,52 @@ const StudentHome = () => {
 
 
   // ==========================================================
-  // SPOTLIGHT NAVIGATION
+  // PREVIOUS SPOTLIGHT
   // ==========================================================
 
   const previousSpotlight = () => {
 
-    if (spotlights.length === 0) {
+    if (
+      spotlights.length === 0
+    ) {
       return;
     }
 
 
     setCurrentSpotlight(
       (previous) =>
+
         previous === 0
+
           ? spotlights.length - 1
+
           : previous - 1
     );
 
   };
 
 
+  // ==========================================================
+  // NEXT SPOTLIGHT
+  // ==========================================================
+
   const nextSpotlight = () => {
 
-    if (spotlights.length === 0) {
+    if (
+      spotlights.length === 0
+    ) {
       return;
     }
 
 
     setCurrentSpotlight(
       (previous) =>
-        previous === spotlights.length - 1
+
+        previous ===
+        spotlights.length - 1
+
           ? 0
+
           : previous + 1
     );
 
@@ -1007,24 +1299,29 @@ const StudentHome = () => {
 
 
   // ==========================================================
-  // HANDLE CREATE POST
+  // CREATE POST
   // ==========================================================
 
   const handleCreatePost = () => {
-    navigate("/create-post");
+
+    navigate(
+      "/create-post"
+    );
+
   };
 
 
   // ==========================================================
-  // HANDLE RETRY
+  // RETRY POSTS
   // ==========================================================
 
   const handleRetryPosts = () => {
 
-    // Start again from page 0.
     setPage(0);
 
     setHasMorePosts(true);
+
+    setPostsError("");
 
     loadPosts(0);
 
@@ -1035,9 +1332,13 @@ const StudentHome = () => {
   // GENERAL LOADING SCREEN
   // ==========================================================
 
-  if (loading && !profile) {
+  if (
+    loading &&
+    !profile
+  ) {
 
     return (
+
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
 
         <div className="flex flex-col items-center gap-3">
@@ -1051,6 +1352,7 @@ const StudentHome = () => {
         </div>
 
       </div>
+
     );
 
   }
@@ -1074,9 +1376,9 @@ const StudentHome = () => {
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
 
 
-          {/* ------------------------------------------------
+          {/* ==================================================
               SCHOOL INFORMATION
-              ------------------------------------------------ */}
+              ================================================== */}
 
           <div className="flex min-w-0 items-center gap-3">
 
@@ -1084,7 +1386,10 @@ const StudentHome = () => {
 
               <img
                 src={school.logo_url}
-                alt={school.name || "School logo"}
+                alt={
+                  school.name ||
+                  "School logo"
+                }
                 className="h-10 w-10 rounded-full object-cover ring-1 ring-gray-200"
               />
 
@@ -1092,9 +1397,7 @@ const StudentHome = () => {
 
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
 
-                <Users
-                  size={20}
-                />
+                <Users size={20} />
 
               </div>
 
@@ -1104,16 +1407,23 @@ const StudentHome = () => {
             <div className="min-w-0">
 
               <h1 className="truncate text-sm font-semibold text-gray-900">
+
                 {schoolLoading
+
                   ? "Loading school..."
-                  : school?.name || "University"}
+
+                  : school?.name ||
+                    "University"}
+
               </h1>
 
 
               <p className="truncate text-xs text-gray-500">
+
                 {profile?.full_name ||
                   profile?.username ||
                   "Student"}
+
               </p>
 
             </div>
@@ -1121,39 +1431,57 @@ const StudentHome = () => {
           </div>
 
 
-          {/* ------------------------------------------------
+          {/* ==================================================
               HEADER ACTIONS
-              ------------------------------------------------ */}
+              ================================================== */}
 
           <div className="flex items-center gap-1">
 
+            {/* SEARCH */}
+
             <button
               type="button"
-              onClick={() => navigate("/search")}
+              onClick={() =>
+                navigate("/search")
+              }
               className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
               aria-label="Search"
             >
+
               <Search size={21} />
+
             </button>
 
 
+            {/* NOTIFICATIONS */}
+
             <button
               type="button"
-              onClick={() => navigate("/notifications")}
+              onClick={() =>
+                navigate("/notifications")
+              }
               className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
               aria-label="Notifications"
             >
+
               <Bell size={21} />
+
             </button>
 
 
+            {/* MESSAGES */}
+
             <button
               type="button"
-              onClick={() => navigate("/messages")}
+              onClick={() =>
+                navigate("/messages")
+              }
               className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
               aria-label="Messages"
             >
+
               <Send size={21} />
+
             </button>
 
           </div>
@@ -1198,22 +1526,26 @@ const StudentHome = () => {
             <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
 
 
-              {/* ------------------------------------------------
+              {/* ==================================================
                   SPOTLIGHT IMAGE
-                  ------------------------------------------------ */}
+                  ================================================== */}
 
               <div className="relative aspect-[16/8] w-full overflow-hidden bg-gray-100">
 
-                {spotlights[currentSpotlight]?.image_url ? (
+                {spotlights[
+                  currentSpotlight
+                ]?.image_url ? (
 
                   <img
                     src={
-                      spotlights[currentSpotlight]
-                        .image_url
+                      spotlights[
+                        currentSpotlight
+                      ].image_url
                     }
                     alt={
-                      spotlights[currentSpotlight]
-                        .title ||
+                      spotlights[
+                        currentSpotlight
+                      ].title ||
                       "Administrator spotlight"
                     }
                     className="h-full w-full object-cover"
@@ -1233,37 +1565,49 @@ const StudentHome = () => {
                 )}
 
 
-                {/* ------------------------------------------------
-                    LEFT ARROW
-                    ------------------------------------------------ */}
+                {/* ==================================================
+                    PREVIOUS BUTTON
+                    ================================================== */}
 
                 {spotlights.length > 1 && (
 
                   <button
                     type="button"
-                    onClick={previousSpotlight}
+                    onClick={
+                      previousSpotlight
+                    }
                     className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
                     aria-label="Previous spotlight"
                   >
-                    <ChevronLeft size={20} />
+
+                    <ChevronLeft
+                      size={20}
+                    />
+
                   </button>
 
                 )}
 
 
-                {/* ------------------------------------------------
-                    RIGHT ARROW
-                    ------------------------------------------------ */}
+                {/* ==================================================
+                    NEXT BUTTON
+                    ================================================== */}
 
                 {spotlights.length > 1 && (
 
                   <button
                     type="button"
-                    onClick={nextSpotlight}
+                    onClick={
+                      nextSpotlight
+                    }
                     className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
                     aria-label="Next spotlight"
                   >
-                    <ChevronRight size={20} />
+
+                    <ChevronRight
+                      size={20}
+                    />
+
                   </button>
 
                 )}
@@ -1271,26 +1615,33 @@ const StudentHome = () => {
               </div>
 
 
-              {/* ------------------------------------------------
+              {/* ==================================================
                   SPOTLIGHT DETAILS
-                  ------------------------------------------------ */}
+                  ================================================== */}
 
               <div className="p-4">
 
                 <div className="flex items-center gap-3">
 
-                  {spotlights[currentSpotlight]?.profiles?.avatar_url ? (
+
+                  {/* ==================================================
+                      PROFILE IMAGE
+                      ================================================== */}
+
+                  {spotlights[
+                    currentSpotlight
+                  ]?.profile?.avatar_url ? (
 
                     <img
                       src={
                         spotlights[
                           currentSpotlight
-                        ].profiles.avatar_url
+                        ].profile.avatar_url
                       }
                       alt={
                         spotlights[
                           currentSpotlight
-                        ].profiles.full_name ||
+                        ].profile.full_name ||
                         "Administrator"
                       }
                       className="h-9 w-9 rounded-full object-cover"
@@ -1307,19 +1658,31 @@ const StudentHome = () => {
                   )}
 
 
+                  {/* ==================================================
+                      PROFILE INFORMATION
+                      ================================================== */}
+
                   <div>
 
                     <p className="text-sm font-semibold text-gray-900">
-                      {
+
+                      {spotlights[
+                        currentSpotlight
+                      ]?.profile?.full_name ||
+
                         spotlights[
                           currentSpotlight
-                        ]?.profiles?.full_name ||
-                        "Administrator"
-                      }
+                        ]?.profile?.username ||
+
+                        "Administrator"}
+
                     </p>
 
+
                     <p className="text-xs text-gray-500">
+
                       Administrator Spotlight
+
                     </p>
 
                   </div>
@@ -1327,43 +1690,66 @@ const StudentHome = () => {
                 </div>
 
 
-                {spotlights[currentSpotlight]?.title && (
+                {/* ==================================================
+                    SPOTLIGHT TITLE
+                    ================================================== */}
+
+                {spotlights[
+                  currentSpotlight
+                ]?.title && (
 
                   <h2 className="mt-3 text-base font-semibold text-gray-900">
+
                     {
                       spotlights[
                         currentSpotlight
                       ].title
                     }
+
                   </h2>
 
                 )}
 
 
-                {spotlights[currentSpotlight]?.description && (
+                {/* ==================================================
+                    SPOTLIGHT DESCRIPTION
+                    ================================================== */}
+
+                {spotlights[
+                  currentSpotlight
+                ]?.description && (
 
                   <p className="mt-1 text-sm leading-6 text-gray-600">
+
                     {
                       spotlights[
                         currentSpotlight
                       ].description
                     }
+
                   </p>
 
                 )}
 
 
-                {/* Spotlight indicators */}
+                {/* ==================================================
+                    CAROUSEL INDICATORS
+                    ================================================== */}
 
                 {spotlights.length > 1 && (
 
                   <div className="mt-4 flex justify-center gap-1.5">
 
                     {spotlights.map(
-                      (spotlight, index) => (
+                      (
+                        spotlight,
+                        index
+                      ) => (
 
                         <button
-                          key={spotlight.id}
+                          key={
+                            spotlight.id
+                          }
                           type="button"
                           onClick={() =>
                             setCurrentSpotlight(
@@ -1373,7 +1759,9 @@ const StudentHome = () => {
                           className={`h-1.5 rounded-full transition-all ${
                             index ===
                             currentSpotlight
+
                               ? "w-5 bg-blue-600"
+
                               : "w-1.5 bg-gray-300"
                           }`}
                           aria-label={`Show spotlight ${
@@ -1405,19 +1793,26 @@ const StudentHome = () => {
 
           <button
             type="button"
-            onClick={handleCreatePost}
+            onClick={
+              handleCreatePost
+            }
             className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-gray-100 transition hover:ring-gray-200"
           >
+
+
+            {/* PROFILE IMAGE */}
 
             {profile?.avatar_url ? (
 
               <img
-                src={profile.avatar_url}
+                src={
+                  profile.avatar_url
+                }
                 alt={
                   profile.full_name ||
                   "Your profile"
                 }
-                className="h-10 w-10 rounded-full object-cover"
+                className="h-10 w-10 shrink-0 rounded-full object-cover"
               />
 
             ) : (
@@ -1431,14 +1826,20 @@ const StudentHome = () => {
             )}
 
 
+            {/* CREATE POST INPUT */}
+
             <div className="flex-1 rounded-full bg-gray-100 px-4 py-2.5">
 
               <span className="text-sm text-gray-500">
+
                 What's happening at your university?
+
               </span>
 
             </div>
 
+
+            {/* PLUS BUTTON */}
 
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
 
@@ -1458,9 +1859,9 @@ const StudentHome = () => {
         <section className="mt-4 space-y-4">
 
 
-          {/* ------------------------------------------------
+          {/* ==================================================
               INITIAL POSTS LOADING
-              ------------------------------------------------ */}
+              ================================================== */}
 
           {postsLoading && (
 
@@ -1469,7 +1870,9 @@ const StudentHome = () => {
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
 
               <p className="mt-3 text-sm text-gray-500">
+
                 Loading posts...
+
               </p>
 
             </div>
@@ -1477,35 +1880,42 @@ const StudentHome = () => {
           )}
 
 
-          {/* ------------------------------------------------
+          {/* ==================================================
               POSTS ERROR
-              ------------------------------------------------ */}
+              ================================================== */}
 
-          {!postsLoading && postsError && (
+          {!postsLoading &&
+            postsError && (
 
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
 
-              <p className="text-sm font-medium text-red-700">
-                {postsError}
-              </p>
+                <p className="text-sm font-medium text-red-700">
 
+                  {postsError}
 
-              <button
-                type="button"
-                onClick={handleRetryPosts}
-                className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Try again
-              </button>
-
-            </div>
-
-          )}
+                </p>
 
 
-          {/* ------------------------------------------------
+                <button
+                  type="button"
+                  onClick={
+                    handleRetryPosts
+                  }
+                  className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                >
+
+                  Try again
+
+                </button>
+
+              </div>
+
+            )}
+
+
+          {/* ==================================================
               NO POSTS
-              ------------------------------------------------ */}
+              ================================================== */}
 
           {!postsLoading &&
             !postsError &&
@@ -1524,19 +1934,25 @@ const StudentHome = () => {
 
 
                 <h2 className="mt-4 text-base font-semibold text-gray-900">
+
                   No posts yet
+
                 </h2>
 
 
                 <p className="mt-1 text-sm text-gray-500">
+
                   Be the first person to share something
                   with your university community.
+
                 </p>
 
 
                 <button
                   type="button"
-                  onClick={handleCreatePost}
+                  onClick={
+                    handleCreatePost
+                  }
                   className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
                 >
 
@@ -1551,32 +1967,29 @@ const StudentHome = () => {
             )}
 
 
-          {/* ------------------------------------------------
+          {/* ==================================================
               DISPLAY POSTS
-              ------------------------------------------------ */}
+              ================================================== */}
 
           {!postsLoading &&
             !postsError &&
-            posts.map((post) => (
+            posts.map(
+              (post) => (
 
-              <PostCard
-                key={post.id}
-                post={post}
-                currentUserId={currentUserId}
-              />
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  currentUserId={
+                    currentUserId
+                  }
+                />
 
-            ))}
+              )
+            )}
 
 
           {/* ==================================================
               INFINITE SCROLL SENTINEL
-              ==================================================
-              
-              This invisible/visible area sits underneath the
-              posts.
-
-              When it enters the viewport, loadPosts(page + 1)
-              automatically loads another 25 posts.
               ================================================== */}
 
           {!postsError &&
@@ -1584,7 +1997,9 @@ const StudentHome = () => {
             hasMorePosts && (
 
               <div
-                ref={loadMoreRef}
+                ref={
+                  loadMoreRef
+                }
                 className="flex min-h-[80px] items-center justify-center"
               >
 
@@ -1618,11 +2033,15 @@ const StudentHome = () => {
               <div className="py-8 text-center">
 
                 <p className="text-sm font-medium text-gray-500">
+
                   You've reached the end of the feed.
+
                 </p>
 
                 <p className="mt-1 text-xs text-gray-400">
+
                   No more posts to show.
+
                 </p>
 
               </div>
@@ -1643,12 +2062,16 @@ const StudentHome = () => {
         <div className="mx-auto flex max-w-3xl items-center justify-around px-2 py-2">
 
 
-          {/* HOME */}
+          {/* ==================================================
+              HOME
+              ================================================== */}
 
           <button
             type="button"
             onClick={() =>
-              navigate("/student-home")
+              navigate(
+                "/student-home"
+              )
             }
             className="flex flex-col items-center gap-1 rounded-lg px-4 py-1.5 text-blue-600"
           >
@@ -1656,18 +2079,24 @@ const StudentHome = () => {
             <Home size={21} />
 
             <span className="text-[11px] font-medium">
+
               Home
+
             </span>
 
           </button>
 
 
-          {/* SEARCH */}
+          {/* ==================================================
+              SEARCH
+              ================================================== */}
 
           <button
             type="button"
             onClick={() =>
-              navigate("/search")
+              navigate(
+                "/search"
+              )
             }
             className="flex flex-col items-center gap-1 rounded-lg px-4 py-1.5 text-gray-500 hover:text-gray-900"
           >
@@ -1675,17 +2104,23 @@ const StudentHome = () => {
             <Search size={21} />
 
             <span className="text-[11px]">
+
               Search
+
             </span>
 
           </button>
 
 
-          {/* CREATE POST */}
+          {/* ==================================================
+              CREATE POST
+              ================================================== */}
 
           <button
             type="button"
-            onClick={handleCreatePost}
+            onClick={
+              handleCreatePost
+            }
             className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-md hover:bg-blue-700"
             aria-label="Create post"
           >
@@ -1695,31 +2130,43 @@ const StudentHome = () => {
           </button>
 
 
-          {/* MESSAGES */}
+          {/* ==================================================
+              MESSAGES
+              ================================================== */}
 
           <button
             type="button"
             onClick={() =>
-              navigate("/messages")
+              navigate(
+                "/messages"
+              )
             }
             className="flex flex-col items-center gap-1 rounded-lg px-4 py-1.5 text-gray-500 hover:text-gray-900"
           >
 
-            <MessageCircle size={21} />
+            <MessageCircle
+              size={21}
+            />
 
             <span className="text-[11px]">
+
               Messages
+
             </span>
 
           </button>
 
 
-          {/* PROFILE */}
+          {/* ==================================================
+              PROFILE
+              ================================================== */}
 
           <button
             type="button"
             onClick={() =>
-              navigate("/profile")
+              navigate(
+                "/profile"
+              )
             }
             className="flex flex-col items-center gap-1 rounded-lg px-4 py-1.5 text-gray-500 hover:text-gray-900"
           >
@@ -1727,7 +2174,9 @@ const StudentHome = () => {
             <User size={21} />
 
             <span className="text-[11px]">
+
               Profile
+
             </span>
 
           </button>
@@ -1739,6 +2188,7 @@ const StudentHome = () => {
     </div>
 
   );
+
 };
 
 

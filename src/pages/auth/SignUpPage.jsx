@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+
+import {
+    Camera
+} from "lucide-react";
+
 import { supabase } from "../../lib/supabase";
 
 import {
@@ -14,7 +19,7 @@ export default function Signup() {
     const navigate = useNavigate();
 
 
-    // Get signup function from AuthContext.
+    // Get signup functions from AuthContext.
     const {
         signUp,
         getProfile
@@ -42,17 +47,38 @@ export default function Signup() {
 
 
     const [role, setRole] =
-        useState('student');
+        useState("student");
 
 
-// Stores all active schools retrieved from Supabase.
-const [schools, setSchools] = useState([]);
+    // --------------------------------------------------------
+    // Profile image selected by the user.
+    // --------------------------------------------------------
 
-// Stores the school selected by the user.
-const [schoolId, setSchoolId] = useState("");
+    const [avatarFile, setAvatarFile] =
+        useState(null);
 
-// Controls the loading state while schools are being loaded.
-const [schoolsLoading, setSchoolsLoading] = useState(true);
+
+    // --------------------------------------------------------
+    // Preview URL used to display the selected image.
+    // --------------------------------------------------------
+
+    const [avatarPreview, setAvatarPreview] =
+        useState("");
+
+
+    // Stores all active schools retrieved from Supabase.
+    const [schools, setSchools] =
+        useState([]);
+
+
+    // Stores the school selected by the user.
+    const [schoolId, setSchoolId] =
+        useState("");
+
+
+    // Controls the loading state while schools are being loaded.
+    const [schoolsLoading, setSchoolsLoading] =
+        useState(true);
 
 
     // ========================================================
@@ -70,31 +96,123 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
     const [success, setSuccess] =
         useState("");
 
-//=========================================================
-// LOAD SCHOOLS ON COMPONENT MOUNT
-// ========================================================
+
+    // ========================================================
+    // LOAD SCHOOLS ON COMPONENT MOUNT
+    // ========================================================
+
     useEffect(() => {
+
         loadSchools();
+
     }, []);
 
- const loadSchools = async () => {
-       setSchoolsLoading(true);
 
-    const { data, error } = await supabase
-        .from("schools")
-        .select("id, name, code")
-        .eq("is_active", true)
-        .order("name", { ascending: true });
+    const loadSchools = async () => {
 
-    if (error) {
-        console.error("Error loading schools:", error);
-        setSchools([]);
-    } else {
-        setSchools(data || []);
-    }
+        setSchoolsLoading(true);
 
-    setSchoolsLoading(false);
-};
+
+        const {
+            data,
+            error
+        } = await supabase
+            .from("schools")
+            .select("id, name, code")
+            .eq("is_active", true)
+            .order(
+                "name",
+                {
+                    ascending: true
+                }
+            );
+
+
+        if (error) {
+
+            console.error(
+                "Error loading schools:",
+                error
+            );
+
+            setSchools([]);
+
+        } else {
+
+            setSchools(
+                data || []
+            );
+        }
+
+
+        setSchoolsLoading(false);
+    };
+
+
+    // ========================================================
+    // HANDLE PROFILE IMAGE SELECTION
+    // ========================================================
+
+    const handleAvatarChange = (e) => {
+
+        const file =
+            e.target.files?.[0];
+
+
+        // No file selected.
+        if (!file) {
+            return;
+        }
+
+
+        // ----------------------------------------------------
+        // Make sure the selected file is an image.
+        // ----------------------------------------------------
+
+        if (!file.type.startsWith("image/")) {
+
+            setError(
+                "Please select a valid image file."
+            );
+
+            return;
+        }
+
+
+        // ----------------------------------------------------
+        // Maximum size: 5 MB.
+        // ----------------------------------------------------
+
+        if (file.size > 5 * 1024 * 1024) {
+
+            setError(
+                "Profile image must be smaller than 5 MB."
+            );
+
+            return;
+        }
+
+
+        // Clear previous errors.
+        setError("");
+
+
+        // Save the file.
+        setAvatarFile(file);
+
+
+        // ----------------------------------------------------
+        // Create a temporary preview.
+        // ----------------------------------------------------
+
+        const previewUrl =
+            URL.createObjectURL(file);
+
+
+        setAvatarPreview(
+            previewUrl
+        );
+    };
 
 
     // ========================================================
@@ -116,7 +234,10 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
         // Validate passwords.
         // ----------------------------------------------------
 
-        if (password !== confirmPassword) {
+        if (
+            password !==
+            confirmPassword
+        ) {
 
             setError(
                 "Passwords do not match."
@@ -159,35 +280,44 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
 
         try {
 
+            // ------------------------------------------------
             // Call the authentication context.
-            const data = await signUp({
+            //
+            // avatarFile is passed separately from Auth
+            // metadata because it is a real File object.
+            // ------------------------------------------------
 
-                email,
+            const data =
+                await signUp({
 
-                password,
+                    email,
 
-                fullName,
+                    password,
 
-                role,
+                    fullName,
 
-                schoolId
-            });
+                    role,
+
+                    schoolId,
+
+                    avatarFile
+                });
 
 
             // ------------------------------------------------
             // If Supabase immediately creates a session,
-            // redirect according to the selected role.
+            // redirect according to the database role.
             // ------------------------------------------------
 
-            if (data?.session && data?.user) {
+            if (
+                data?.session &&
+                data?.user
+            ) {
 
                 /*
-                 * We already have a session.
-                 *
                  * Retrieve the profile so that the redirect
                  * uses the database role.
                  */
-
 
                 const profile =
                     await getProfile(
@@ -224,8 +354,10 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
 
 
             /*
-             * We don't use VerifyEmail.jsx or AuthCallback.jsx.
+             * We don't use VerifyEmail.jsx or
+             * AuthCallback.jsx.
              */
+
             setTimeout(() => {
 
                 navigate("/login");
@@ -246,7 +378,6 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                 "Unable to create your account."
             );
 
-
         } finally {
 
             setLoading(false);
@@ -264,28 +395,36 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
 
             case "student":
 
-                navigate("/student-home");
+                navigate(
+                    "/student-home"
+                );
 
                 break;
 
 
             case "teacher":
 
-                navigate("/admin-home");
+                navigate(
+                    "/teacher-home"
+                );
 
                 break;
 
 
             case "admin":
 
-                navigate("/admin-home");
+                navigate(
+                    "/admin-home"
+                );
 
                 break;
 
 
             case "super_admin":
 
-                navigate("/super-admin-home");
+                navigate(
+                    "/super-admin-home"
+                );
 
                 break;
 
@@ -305,7 +444,7 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
 
     return (
 
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8">
 
             <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
 
@@ -319,7 +458,85 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                 </p>
 
 
-                {/* ERROR MESSAGE */}
+                {/* ==================================================
+                    PROFILE IMAGE
+                    ================================================== */}
+
+                <div className="mt-6 flex flex-col items-center">
+
+                    <label
+                        htmlFor="avatar-upload"
+                        className="relative cursor-pointer"
+                    >
+
+                        {/* ------------------------------------------
+                            Circular profile image.
+                            ------------------------------------------ */}
+
+                        <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gray-200 ring-4 ring-white shadow-md">
+
+                            {avatarPreview ? (
+
+                                <img
+                                    src={avatarPreview}
+                                    alt="Profile preview"
+                                    className="h-full w-full object-cover"
+                                />
+
+                            ) : (
+
+                                <div className="flex flex-col items-center justify-center text-gray-400">
+
+                                    <Camera
+                                        size={32}
+                                    />
+
+                                    <span className="mt-1 text-xs">
+                                        Add photo
+                                    </span>
+
+                                </div>
+                            )}
+
+                        </div>
+
+
+                        {/* ------------------------------------------
+                            Small camera button.
+                            ------------------------------------------ */}
+
+                        <div className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white shadow-md">
+
+                            <Camera
+                                size={18}
+                            />
+
+                        </div>
+
+                    </label>
+
+
+                    {/* Hidden file input */}
+
+                    <input
+                        id="avatar-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="hidden"
+                    />
+
+
+                    <p className="mt-3 text-sm text-gray-500">
+                        Add a profile photo
+                    </p>
+
+                </div>
+
+
+                {/* ==================================================
+                    ERROR MESSAGE
+                    ================================================== */}
 
                 {error && (
 
@@ -332,7 +549,9 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                 )}
 
 
-                {/* SUCCESS MESSAGE */}
+                {/* ==================================================
+                    SUCCESS MESSAGE
+                    ================================================== */}
 
                 {success && (
 
@@ -350,7 +569,9 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                     className="mt-6 space-y-4"
                 >
 
-                    {/* FULL NAME */}
+                    {/* ==================================================
+                        FULL NAME
+                        ================================================== */}
 
                     <div>
 
@@ -359,6 +580,7 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                             Full Name
 
                         </label>
+
 
                         <input
                             type="text"
@@ -376,7 +598,9 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                     </div>
 
 
-                    {/* EMAIL */}
+                    {/* ==================================================
+                        EMAIL
+                        ================================================== */}
 
                     <div>
 
@@ -385,6 +609,7 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                             Email
 
                         </label>
+
 
                         <input
                             type="email"
@@ -402,7 +627,9 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                     </div>
 
 
-                    {/* ROLE */}
+                    {/* ==================================================
+                        ROLE
+                        ================================================== */}
 
                     <div>
 
@@ -411,6 +638,7 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                             Account Type
 
                         </label>
+
 
                         <select
                             value={role}
@@ -427,13 +655,16 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                                 Select account type
                             </option>
 
+
                             <option value="student">
                                 Student
                             </option>
 
+
                             <option value="teacher">
                                 Teacher
                             </option>
+
 
                             <option value="admin">
                                 Admin
@@ -444,7 +675,9 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                     </div>
 
 
-                    {/* SCHOOL */}
+                    {/* ==================================================
+                        SCHOOL
+                        ================================================== */}
 
                     <div>
 
@@ -453,33 +686,52 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                             School
 
                         </label>
-                    <select
-                        value={schoolId}
-                        onChange={(e) => setSchoolId(e.target.value)}
-                        
-                        required
-                        className="w-full rounded-lg border px-4 py-3"
-                    >
-                        <option value="">
-                            {schoolsLoading
-                                ? "Loading schools..."
-                                : "Select your school"}
-                        </option>
 
-                        {schools.map((school) => (
-                            <option
-                                key={school.id}
-                                value={school.id}
-                            >
-                                {school.name} ({school.code})
+
+                        <select
+                            value={schoolId}
+                            onChange={(e) =>
+                                setSchoolId(
+                                    e.target.value
+                                )
+                            }
+                            required
+                            className="w-full rounded-lg border px-4 py-3"
+                        >
+
+                            <option value="">
+
+                                {schoolsLoading
+                                    ? "Loading schools..."
+                                    : "Select your school"}
+
                             </option>
-                        ))}
-                    </select>
+
+
+                            {schools.map(
+                                (school) => (
+
+                                    <option
+                                        key={school.id}
+                                        value={school.id}
+                                    >
+
+                                        {school.name}
+                                        {" "}
+                                        ({school.code})
+
+                                    </option>
+                                )
+                            )}
+
+                        </select>
 
                     </div>
 
 
-                    {/* PASSWORD */}
+                    {/* ==================================================
+                        PASSWORD
+                        ================================================== */}
 
                     <div>
 
@@ -488,6 +740,7 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                             Password
 
                         </label>
+
 
                         <input
                             type="password"
@@ -505,7 +758,9 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                     </div>
 
 
-                    {/* CONFIRM PASSWORD */}
+                    {/* ==================================================
+                        CONFIRM PASSWORD
+                        ================================================== */}
 
                     <div>
 
@@ -514,6 +769,7 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                             Confirm Password
 
                         </label>
+
 
                         <input
                             type="password"
@@ -531,7 +787,9 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
                     </div>
 
 
-                    {/* SUBMIT */}
+                    {/* ==================================================
+                        SUBMIT
+                        ================================================== */}
 
                     <button
                         type="submit"
@@ -541,15 +799,16 @@ const [schoolsLoading, setSchoolsLoading] = useState(true);
 
                         {loading
                             ? "Creating account..."
-                            : "Create Account"
-                        }
+                            : "Create Account"}
 
                     </button>
 
                 </form>
 
 
-                {/* LOGIN LINK */}
+                {/* ==================================================
+                    LOGIN LINK
+                    ================================================== */}
 
                 <p className="mt-6 text-center text-sm text-gray-600">
 

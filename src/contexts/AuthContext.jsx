@@ -22,6 +22,7 @@ import { supabase } from "../lib/supabase";
 // 6. Signing users out.
 // 7. Keeping authentication state available
 //    throughout the entire React application.
+// 8. Uploading the user's profile image during signup.
 //
 // ============================================================
 
@@ -50,6 +51,7 @@ export function AuthProvider({ children }) {
     // full_name
     // role
     // school_id
+    // avatar_url
     //
     // --------------------------------------------------------
 
@@ -88,8 +90,15 @@ export function AuthProvider({ children }) {
             .select(`
                 id,
                 full_name,
+                username,
+                email,
+                avatar_url,
+                bio,
                 role,
-                school_id
+                school_id,
+                is_active,
+                created_at,
+                updated_at
             `)
             .eq("id", userId)
             .single();
@@ -115,6 +124,167 @@ export function AuthProvider({ children }) {
 
         // Return the profile to the caller.
         return data;
+    };
+
+
+    // ========================================================
+    // UPLOAD PROFILE IMAGE
+    // ========================================================
+    //
+    // This function is used during signup.
+    //
+    // We deliberately keep the actual image file OUT of
+    // Supabase Auth metadata.
+    //
+    // The image is stored in Supabase Storage and the resulting
+    // public URL is saved into profiles.avatar_url.
+    //
+    // ========================================================
+
+    const uploadProfileImage = async (userId, avatarFile) => {
+
+        // If no image was selected, there is nothing to upload.
+        if (!userId || !avatarFile) {
+            return null;
+        }
+
+
+        // ----------------------------------------------------
+        // Validate image type.
+        // ----------------------------------------------------
+
+        if (!avatarFile.type.startsWith("image/")) {
+
+            throw new Error(
+                "Please select a valid image file."
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // Limit the image size.
+        //
+        // 5 MB is enough for a profile image.
+        // ----------------------------------------------------
+
+        const maxSize = 5 * 1024 * 1024;
+
+        if (avatarFile.size > maxSize) {
+
+            throw new Error(
+                "Profile image must be smaller than 5 MB."
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // Extract the file extension.
+        // ----------------------------------------------------
+
+        const fileExtension =
+            avatarFile.name
+                .split(".")
+                .pop()
+                ?.toLowerCase() || "jpg";
+
+
+        // ----------------------------------------------------
+        // Generate a unique filename.
+        //
+        // Example:
+        //
+        // USER_ID/avatar_1723456789.jpg
+        //
+        // ----------------------------------------------------
+
+        const fileName =
+            `avatar_${Date.now()}.${fileExtension}`;
+
+
+        const filePath =
+            `${userId}/${fileName}`;
+
+
+        // ----------------------------------------------------
+        // Upload the image to Supabase Storage.
+        // ----------------------------------------------------
+
+        const {
+            error: uploadError
+        } = await supabase.storage
+            .from("profile-media")
+            .upload(
+                filePath,
+                avatarFile,
+                {
+                    cacheControl: "3600",
+                    upsert: false,
+                    contentType: avatarFile.type
+                }
+            );
+
+
+        // Stop if upload failed.
+        if (uploadError) {
+
+            console.error(
+                "Profile image upload error:",
+                uploadError
+            );
+
+            throw uploadError;
+        }
+
+
+        // ----------------------------------------------------
+        // Get the public URL of the uploaded image.
+        // ----------------------------------------------------
+
+        const {
+            data: publicUrlData
+        } = supabase.storage
+            .from("profile-media")
+            .getPublicUrl(filePath);
+
+
+        const avatarUrl =
+            publicUrlData?.publicUrl;
+
+
+        if (!avatarUrl) {
+
+            throw new Error(
+                "Unable to generate the profile image URL."
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // Save the image URL into profiles.avatar_url.
+        // ----------------------------------------------------
+
+        const {
+            error: profileUpdateError
+        } = await supabase
+            .from("profiles")
+            .update({
+                avatar_url: avatarUrl
+            })
+            .eq("id", userId);
+
+
+        if (profileUpdateError) {
+
+            console.error(
+                "Error saving avatar URL:",
+                profileUpdateError
+            );
+
+            throw profileUpdateError;
+        }
+
+
+        return avatarUrl;
     };
 
 
@@ -229,6 +399,7 @@ export function AuthProvider({ children }) {
                      * authentication event is allowed to finish
                      * before making another Supabase request.
                      */
+
                     setTimeout(async () => {
 
                         if (mounted) {
@@ -273,23 +444,34 @@ export function AuthProvider({ children }) {
         password,
         fullName,
         role,
-        schoolId
+        schoolId,
+        avatarFile
     }) => {
 
+        // ----------------------------------------------------
         // Basic validation.
-        if (!email || !password ) {
+        // ----------------------------------------------------
+
+        if (!email || !password) {
 
             throw new Error(
                 "Email and password are required."
             );
         }
-      if(!fullName){
-        throw new Error(
-          "Enter a valide name."
-        )
-      }
 
+
+        if (!fullName) {
+
+            throw new Error(
+                "Enter a valid name."
+            );
+        }
+
+
+        // ----------------------------------------------------
         // Make sure a role was selected.
+        // ----------------------------------------------------
+
         if (!role) {
 
             throw new Error(
@@ -298,7 +480,10 @@ export function AuthProvider({ children }) {
         }
 
 
+        // ----------------------------------------------------
         // Make sure a school was selected.
+        // ----------------------------------------------------
+
         if (!schoolId) {
 
             throw new Error(
@@ -307,7 +492,10 @@ export function AuthProvider({ children }) {
         }
 
 
+        // ----------------------------------------------------
         // Create the Supabase authentication account.
+        // ----------------------------------------------------
+
         const {
             data,
             error
@@ -327,14 +515,23 @@ export function AuthProvider({ children }) {
                  *
                  * Our database logic can use this
                  * when creating the profile.
+                 *
+                 * IMPORTANT:
+                 *
+                 * We DO NOT put avatarFile here because
+                 * File objects should not be stored in
+                 * Auth metadata.
                  */
+
                 data: {
 
-                    full_name: fullName?.trim(),
+                    full_name:
+                        fullName.trim(),
 
                     role: role,
 
-                    school_id: schoolId
+                    school_id:
+                        schoolId
                 }
             }
         });
@@ -347,7 +544,63 @@ export function AuthProvider({ children }) {
         }
 
 
+        // ----------------------------------------------------
+        // Make sure a user was created.
+        // ----------------------------------------------------
+
+        if (!data?.user) {
+
+            throw new Error(
+                "Unable to create your account."
+            );
+        }
+
+
+        // ----------------------------------------------------
+        // Upload profile image.
+        //
+        // This requires an active session because the
+        // Storage RLS policy allows authenticated users
+        // to upload their own files.
+        //
+        // Your current project is designed without a
+        // VerifyEmail/AuthCallback flow, so when signup
+        // immediately creates a session, the upload happens
+        // here.
+        // ----------------------------------------------------
+
+        if (avatarFile && data.session) {
+
+            try {
+
+                await uploadProfileImage(
+                    data.user.id,
+                    avatarFile
+                );
+
+            } catch (avatarError) {
+
+                console.error(
+                    "Profile image setup failed:",
+                    avatarError
+                );
+
+                /*
+                 * We do not delete the newly created account
+                 * if the image upload fails.
+                 *
+                 * The user can still log in and add/change
+                 * their profile image later from the Profile
+                 * page.
+                 */
+            }
+        }
+
+
+        // ----------------------------------------------------
         // Return the Supabase response.
+        // ----------------------------------------------------
+
         return data;
     };
 
@@ -386,7 +639,6 @@ export function AuthProvider({ children }) {
         if (error) {
 
             throw error;
-            console.log(error);
         }
 
 
@@ -420,7 +672,10 @@ export function AuthProvider({ children }) {
         }
 
 
+        // ----------------------------------------------------
         // Make sure the role is valid.
+        // ----------------------------------------------------
+
         const validRoles = [
             "student",
             "teacher",
@@ -497,12 +752,15 @@ export function AuthProvider({ children }) {
 
         signOut,
 
-        getProfile
+        getProfile,
+
+        uploadProfileImage
     };
 
 
     // Make the authentication information available
     // to every component inside AuthProvider.
+
     return (
         <AuthContext.Provider value={value}>
 
@@ -519,15 +777,19 @@ export function AuthProvider({ children }) {
 //
 // Components can now use:
 //
-// const { user, profile, signIn } = useAuth();
+// const {
+//     user,
+//     profile,
+//     signIn,
+//     uploadProfileImage
+// } = useAuth();
 //
 // ============================================================
 
 export function useAuth() {
 
-    const context = useContext(
-        AuthContext
-    );
+    const context =
+        useContext(AuthContext);
 
 
     if (!context) {
