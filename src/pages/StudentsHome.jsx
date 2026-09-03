@@ -1118,7 +1118,7 @@ const StudentHome = () => {
 
             ) : (
 
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-purple-600">
 
                 <Users size={20} />
 
@@ -1340,7 +1340,7 @@ const StudentHome = () => {
 
                   ) : (
 
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-purple-600">
 
                       <User size={18} />
 
@@ -1435,7 +1435,7 @@ const StudentHome = () => {
                             index ===
                             currentSpotlight
 
-                              ? "w-5 bg-blue-600"
+                              ? "w-5 bg-purple-600"
 
                               : "w-1.5 bg-gray-300"
                           }`}
@@ -1489,7 +1489,7 @@ const StudentHome = () => {
 
             ) : (
 
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-purple-600">
 
                 <User size={20} />
 
@@ -1509,7 +1509,7 @@ const StudentHome = () => {
             </div>
 
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white">
 
               <Plus size={20} />
 
@@ -1608,7 +1608,7 @@ const StudentHome = () => {
                   onClick={
                     handleCreatePost
                   }
-                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700"
                 >
 
                   <Plus size={17} />
@@ -1726,7 +1726,7 @@ const StudentHome = () => {
                 "/student-home"
               )
             }
-            className="flex flex-col items-center gap-1 rounded-lg px-4 py-1.5 text-blue-600"
+            className="flex flex-col items-center gap-1 rounded-lg px-4 py-1.5 text-purple-600"
           >
 
             <Home size={21} />
@@ -1766,7 +1766,7 @@ const StudentHome = () => {
             onClick={
               handleCreatePost
             }
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-md hover:bg-blue-700"
+            className="flex h-11 w-11 items-center justify-center rounded-full  text-white shadow-md hover:bg-purple-700"
             aria-label="Create post"
           >
 

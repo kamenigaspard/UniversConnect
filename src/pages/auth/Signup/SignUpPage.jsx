@@ -99,7 +99,7 @@ const Signup = () => {
               <div
                 className={`flex h-10 w-10 items-center justify-center rounded-full font-semibold ${
                   step >= number
-                    ? "bg-blue-600 text-white"
+                    ? "bg-purple-600 text-white"
                     : "bg-gray-200 text-gray-500"
                 }`}
               >

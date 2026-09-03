@@ -195,7 +195,7 @@ const SignupAccount = ({
 
         <button
           type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 py-3 font-semibold text-white transition hover:bg-purple-700"
         >
           Continue
           <ArrowRight size={18} />
@@ -206,7 +206,7 @@ const SignupAccount = ({
         Already have an account?{" "}
         <Link
           to="/login"
-          className="font-semibold text-blue-600 hover:underline"
+          className="font-semibold text-purple-600 hover:underline"
         >
           Login
         </Link>

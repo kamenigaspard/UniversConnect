@@ -118,7 +118,7 @@ export default function Login() {
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-500"
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-500"
                 >
                   Forgot your password?
                 </Link>
@@ -146,7 +146,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative flex w-full justify-center rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              className="group relative flex w-full justify-center rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
             >
               {loading ? (
                 "Signing in..."
@@ -161,7 +161,7 @@ export default function Login() {
 
         <div className="text-center text-sm">
           <span className="text-gray-500">Don't have an account? </span>
-          <Link to="/signup" className="font-semibold text-blue-600 hover:text-blue-500">
+          <Link to="/signup" className="font-semibold text-purple-600 hover:underline">
             Sign up
           </Link>
         </div>

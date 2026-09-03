@@ -183,7 +183,7 @@ function AdminHome() {
                         ) : school?.logo_url ? (
                             <img src={school.logo_url} alt={`${school.name} logo`} className="h-10 w-10 rounded-full object-cover" />
                         ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white">
                                 <Users size={20} />
                             </div>
                         )}
@@ -248,7 +248,7 @@ function AdminHome() {
                             <div className="p-4">
                                 {spotlight.title && <h3 className="font-semibold text-gray-900">{spotlight.title}</h3>}
                                 {spotlight.description && <p className="mt-1 text-sm leading-6 text-gray-600">{spotlight.description}</p>}
-                                <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+                                <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700">
                                     <MessageCircle size={17} /> Message
                                 </button>
                             </div>
@@ -278,7 +278,7 @@ function AdminHome() {
                     onClick={() => navigate("/create-post")}
                     className="mb-6 flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm transition hover:bg-gray-50"
                 >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-purple-600">
                         <Plus size={22} />
                     </div>
                     <div>
@@ -324,7 +324,7 @@ function AdminHome() {
 
             <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white">
                 <div className="mx-auto flex h-16 max-w-2xl items-center justify-around">
-                    <button className="flex flex-col items-center gap-1 text-blue-600" onClick={() => navigate("/")}>
+                    <button className="flex flex-col items-center gap-1 text-purple-600" onClick={() => navigate("/")}>
                         <Home size={22} />
                         <span className="text-[10px] font-medium">Home</span>
                     </button>
@@ -333,7 +333,7 @@ function AdminHome() {
                         <span className="text-[10px]">Search</span>
                     </button>
                     <button type="button" onClick={() => navigate("/create-post")} className="flex flex-col items-center justify-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white">
                             <Plus size={22} />
                         </div>
                         <span className="mt-1 text-xs">Create</span>

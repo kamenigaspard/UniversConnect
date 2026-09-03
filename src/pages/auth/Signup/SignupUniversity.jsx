@@ -201,7 +201,7 @@ const SignupUniversity = ({
 
           <button
             type="submit"
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-purple-600 py-3 font-semibold text-white hover:bg-purple-700"
           >
             Continue
             <ArrowRight size={18} />

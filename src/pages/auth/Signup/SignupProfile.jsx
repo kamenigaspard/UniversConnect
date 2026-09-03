@@ -136,7 +136,7 @@ const SignupProfile = ({ signupData, updateSignupData, previousStep }) => {
                 <Camera size={40} className="text-gray-400" />
               )}
             </div>
-            <div className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow">
+            <div className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white shadow">
               <Camera size={18} />
             </div>
           </label>
@@ -178,7 +178,7 @@ const SignupProfile = ({ signupData, updateSignupData, previousStep }) => {
           <button
             type="submit"
             disabled={loading}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-purple-600 py-3 font-semibold text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Check size={18} /> {loading ? "Creating..." : "Create account"}
           </button>
