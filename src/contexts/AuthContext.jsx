@@ -12,17 +12,28 @@ import { supabase } from "../lib/supabase";
 // AUTH CONTEXT
 // ============================================================
 //
-// This context is responsible for:
+// This context manages:
 //
-// 1. Keeping track of the logged-in Supabase user.
-// 2. Loading the user's profile.
-// 3. Reading the user's role.
-// 4. Signing users up.
-// 5. Signing users in.
-// 6. Signing users out.
-// 7. Keeping authentication state available
-//    throughout the entire React application.
-// 8. Uploading the user's profile image during signup.
+// 1. Supabase authentication.
+// 2. The currently logged-in user.
+// 3. The user's public profile.
+// 4. Signup.
+// 5. Login.
+// 6. Logout.
+// 7. Profile loading.
+// 8. Profile-image uploading.
+//
+// IMPORTANT
+// ------------------------------------------------------------
+// The profile image is NOT stored inside Supabase Auth metadata.
+//
+// Instead:
+//
+// Supabase Auth
+//      ↓
+// public.profiles
+//      ↓
+// Supabase Storage
 //
 // ============================================================
 
@@ -37,42 +48,44 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
 
     // --------------------------------------------------------
-    // Current authenticated Supabase user.
+    // Currently authenticated Supabase user.
     // --------------------------------------------------------
 
     const [user, setUser] = useState(null);
 
 
     // --------------------------------------------------------
-    // Current user's profile from public.profiles.
-    //
-    // This contains information such as:
-    //
-    // full_name
-    // role
-    // school_id
-    // avatar_url
-    //
+    // Currently authenticated user's public profile.
     // --------------------------------------------------------
 
     const [profile, setProfile] = useState(null);
 
 
     // --------------------------------------------------------
-    // Indicates whether we are still checking
-    // the initial authentication session.
+    // Indicates that authentication state is still loading.
     // --------------------------------------------------------
 
     const [loading, setLoading] = useState(true);
 
 
     // ========================================================
-    // GET USER PROFILE
+    // GET PROFILE
+    // ========================================================
+    //
+    // Loads the profile belonging to a Supabase Auth user.
+    //
+    // The important relationship is:
+    //
+    // auth.users.id
+    //      ↓
+    // profiles.id
+    //
+    // We enforce this relationship in application logic.
+    //
     // ========================================================
 
     const getProfile = async (userId) => {
 
-        // Make sure a user ID was provided.
         if (!userId) {
 
             setProfile(null);
@@ -81,7 +94,6 @@ export function AuthProvider({ children }) {
         }
 
 
-        // Get the user's profile from Supabase.
         const {
             data,
             error
@@ -104,7 +116,6 @@ export function AuthProvider({ children }) {
             .single();
 
 
-        // Handle profile errors.
         if (error) {
 
             console.error(
@@ -118,11 +129,8 @@ export function AuthProvider({ children }) {
         }
 
 
-        // Save profile in React state.
         setProfile(data);
 
-
-        // Return the profile to the caller.
         return data;
     };
 
@@ -131,20 +139,25 @@ export function AuthProvider({ children }) {
     // UPLOAD PROFILE IMAGE
     // ========================================================
     //
-    // This function is used during signup.
+    // Files are stored using:
     //
-    // We deliberately keep the actual image file OUT of
-    // Supabase Auth metadata.
+    // profile-media/
+    //      USER_ID/
+    //          avatar_timestamp.jpg
     //
-    // The image is stored in Supabase Storage and the resulting
-    // public URL is saved into profiles.avatar_url.
+    // This matches the safer storage policies that restrict
+    // users to their own folder.
     //
     // ========================================================
 
-    const uploadProfileImage = async (userId, avatarFile) => {
+    const uploadProfileImage = async (
+        userId,
+        avatarFile
+    ) => {
 
-        // If no image was selected, there is nothing to upload.
+        // Nothing to upload.
         if (!userId || !avatarFile) {
+
             return null;
         }
 
@@ -153,7 +166,10 @@ export function AuthProvider({ children }) {
         // Validate image type.
         // ----------------------------------------------------
 
-        if (!avatarFile.type.startsWith("image/")) {
+        if (
+            !avatarFile.type ||
+            !avatarFile.type.startsWith("image/")
+        ) {
 
             throw new Error(
                 "Please select a valid image file."
@@ -162,12 +178,12 @@ export function AuthProvider({ children }) {
 
 
         // ----------------------------------------------------
-        // Limit the image size.
-        //
-        // 5 MB is enough for a profile image.
+        // Maximum profile-image size = 5 MB.
         // ----------------------------------------------------
 
-        const maxSize = 5 * 1024 * 1024;
+        const maxSize =
+            5 * 1024 * 1024;
+
 
         if (avatarFile.size > maxSize) {
 
@@ -178,7 +194,7 @@ export function AuthProvider({ children }) {
 
 
         // ----------------------------------------------------
-        // Extract the file extension.
+        // Get file extension.
         // ----------------------------------------------------
 
         const fileExtension =
@@ -189,24 +205,29 @@ export function AuthProvider({ children }) {
 
 
         // ----------------------------------------------------
-        // Generate a unique filename.
-        //
-        // Example:
-        //
-        // USER_ID/avatar_1723456789.jpg
-        //
+        // Create a unique filename.
         // ----------------------------------------------------
 
         const fileName =
             `avatar_${Date.now()}.${fileExtension}`;
 
 
+        // ----------------------------------------------------
+        // IMPORTANT:
+        //
+        // The first folder must be the user's Auth ID.
+        //
+        // This matches:
+        //
+        // storage.foldername(name)[1] = auth.uid()
+        // ----------------------------------------------------
+
         const filePath =
             `${userId}/${fileName}`;
 
 
         // ----------------------------------------------------
-        // Upload the image to Supabase Storage.
+        // Upload image.
         // ----------------------------------------------------
 
         const {
@@ -224,7 +245,6 @@ export function AuthProvider({ children }) {
             );
 
 
-        // Stop if upload failed.
         if (uploadError) {
 
             console.error(
@@ -237,7 +257,9 @@ export function AuthProvider({ children }) {
 
 
         // ----------------------------------------------------
-        // Get the public URL of the uploaded image.
+        // Generate public URL.
+        //
+        // Your profile-media bucket is currently public.
         // ----------------------------------------------------
 
         const {
@@ -254,13 +276,13 @@ export function AuthProvider({ children }) {
         if (!avatarUrl) {
 
             throw new Error(
-                "Unable to generate the profile image URL."
+                "Unable to generate profile image URL."
             );
         }
 
 
         // ----------------------------------------------------
-        // Save the image URL into profiles.avatar_url.
+        // Save URL in profiles.avatar_url.
         // ----------------------------------------------------
 
         const {
@@ -289,7 +311,7 @@ export function AuthProvider({ children }) {
 
 
     // ========================================================
-    // CHECK INITIAL SESSION
+    // INITIAL SESSION
     // ========================================================
 
     useEffect(() => {
@@ -301,7 +323,6 @@ export function AuthProvider({ children }) {
 
             try {
 
-                // Ask Supabase whether a user is already logged in.
                 const {
                     data: {
                         session
@@ -309,32 +330,27 @@ export function AuthProvider({ children }) {
                 } = await supabase.auth.getSession();
 
 
-                // Stop if the component has been unmounted.
                 if (!mounted) {
+
                     return;
                 }
 
 
-                // If there is a logged-in user...
                 if (session?.user) {
 
-                    // Store the authenticated user.
                     setUser(session.user);
 
 
-                    // Load their profile.
                     await getProfile(
                         session.user.id
                     );
 
                 } else {
 
-                    // No authenticated user.
                     setUser(null);
 
                     setProfile(null);
                 }
-
 
             } catch (error) {
 
@@ -352,7 +368,6 @@ export function AuthProvider({ children }) {
                 if (mounted) {
 
                     setLoading(false);
-
                 }
             }
         };
@@ -364,15 +379,6 @@ export function AuthProvider({ children }) {
         // ====================================================
         // AUTH STATE LISTENER
         // ====================================================
-        //
-        // This listens for:
-        //
-        // SIGNED_IN
-        // SIGNED_OUT
-        // TOKEN_REFRESHED
-        // USER_UPDATED
-        //
-        // ====================================================
 
         const {
             data: {
@@ -382,24 +388,20 @@ export function AuthProvider({ children }) {
             async (_event, session) => {
 
                 if (!mounted) {
+
                     return;
                 }
 
 
                 if (session?.user) {
 
-                    // Save authenticated user.
                     setUser(session.user);
 
 
                     /*
-                     * Load profile information.
-                     *
-                     * We use setTimeout so that the Supabase
-                     * authentication event is allowed to finish
-                     * before making another Supabase request.
+                     * Wait until the current authentication event
+                     * finishes before querying the database.
                      */
-
                     setTimeout(async () => {
 
                         if (mounted) {
@@ -407,14 +409,12 @@ export function AuthProvider({ children }) {
                             await getProfile(
                                 session.user.id
                             );
-
                         }
 
                     }, 0);
 
                 } else {
 
-                    // User logged out.
                     setUser(null);
 
                     setProfile(null);
@@ -423,13 +423,12 @@ export function AuthProvider({ children }) {
         );
 
 
-        // Cleanup when the provider is destroyed.
+        // Cleanup.
         return () => {
 
             mounted = false;
 
             subscription.unsubscribe();
-
         };
 
     }, []);
@@ -438,6 +437,10 @@ export function AuthProvider({ children }) {
     // ========================================================
     // SIGN UP
     // ========================================================
+    //
+    // Receives information from the three signup screens.
+    //
+    // ========================================================
 
     const signUp = async ({
         email,
@@ -445,43 +448,60 @@ export function AuthProvider({ children }) {
         fullName,
         role,
         schoolId,
+        username,
+        bio,
         avatarFile
     }) => {
 
         // ----------------------------------------------------
-        // Basic validation.
+        // Validate account information.
         // ----------------------------------------------------
 
-        if (!email || !password) {
+        if (!email?.trim()) {
 
             throw new Error(
-                "Email and password are required."
+                "Email is required."
             );
         }
 
 
-        if (!fullName) {
+        if (!password) {
 
             throw new Error(
-                "Enter a valid name."
+                "Password is required."
+            );
+        }
+
+
+        if (!fullName?.trim()) {
+
+            throw new Error(
+                "Enter your full name."
             );
         }
 
 
         // ----------------------------------------------------
-        // Make sure a role was selected.
+        // Validate role.
         // ----------------------------------------------------
 
-        if (!role) {
+        const validRoles = [
+            "student",
+            "teacher",
+            "admin"
+        ];
+
+
+        if (!validRoles.includes(role)) {
 
             throw new Error(
-                "Please select your account role."
+                "Please select a valid account role."
             );
         }
 
 
         // ----------------------------------------------------
-        // Make sure a school was selected.
+        // Validate school.
         // ----------------------------------------------------
 
         if (!schoolId) {
@@ -493,34 +513,54 @@ export function AuthProvider({ children }) {
 
 
         // ----------------------------------------------------
-        // Create the Supabase authentication account.
+        // Validate username.
         // ----------------------------------------------------
+
+        if (!username?.trim()) {
+
+            throw new Error(
+                "Please choose a username."
+            );
+        }
+
+
+        const cleanUsername =
+            username.trim().toLowerCase();
+
+
+        const usernameRegex =
+            /^[a-z0-9_]+$/;
+
+
+        if (!usernameRegex.test(cleanUsername)) {
+
+            throw new Error(
+                "Username can only contain letters, numbers and underscores."
+            );
+        }
+
+
+        // ====================================================
+        // STEP 1 — CREATE AUTH ACCOUNT
+        // ====================================================
 
         const {
             data,
             error
         } = await supabase.auth.signUp({
 
-            // User's email.
             email: email.trim(),
 
-            // User's password.
             password,
 
             options: {
 
                 /*
-                 * Store signup information in
-                 * Supabase Auth metadata.
+                 * These values are stored as Auth metadata.
                  *
-                 * Our database logic can use this
-                 * when creating the profile.
-                 *
-                 * IMPORTANT:
-                 *
-                 * We DO NOT put avatarFile here because
-                 * File objects should not be stored in
-                 * Auth metadata.
+                 * We keep them here as additional signup
+                 * information, but the real profile data will
+                 * be stored in public.profiles.
                  */
 
                 data: {
@@ -528,25 +568,26 @@ export function AuthProvider({ children }) {
                     full_name:
                         fullName.trim(),
 
-                    role: role,
+                    role,
 
                     school_id:
-                        schoolId
+                        schoolId,
+
+                    username:
+                        cleanUsername,
+
+                    bio:
+                        bio?.trim() || ""
                 }
             }
         });
 
 
-        // Stop if Supabase returned an error.
         if (error) {
 
             throw error;
         }
 
-
-        // ----------------------------------------------------
-        // Make sure a user was created.
-        // ----------------------------------------------------
 
         if (!data?.user) {
 
@@ -556,27 +597,123 @@ export function AuthProvider({ children }) {
         }
 
 
+        const userId =
+            data.user.id;
+
+
+        // ====================================================
+        // STEP 2 — CREATE PROFILE
+        // ====================================================
+        //
+        // We create the public.profiles record using the
+        // same UUID as auth.users.id.
+        //
+        // ====================================================
+
+        const {
+            data: createdProfile,
+            error: profileError
+        } = await supabase
+            .from("profiles")
+            .insert({
+
+                id: userId,
+
+                full_name:
+                    fullName.trim(),
+
+                username:
+                    cleanUsername,
+
+                email:
+                    email.trim(),
+
+                bio:
+                    bio?.trim() || null,
+
+                role,
+
+                school_id:
+                    schoolId,
+
+                is_active:
+                    true
+            })
+            .select(`
+                id,
+                full_name,
+                username,
+                email,
+                avatar_url,
+                bio,
+                role,
+                school_id,
+                is_active,
+                created_at,
+                updated_at
+            `)
+            .single();
+
+
         // ----------------------------------------------------
-        // Upload profile image.
-        //
-        // This requires an active session because the
-        // Storage RLS policy allows authenticated users
-        // to upload their own files.
-        //
-        // Your current project is designed without a
-        // VerifyEmail/AuthCallback flow, so when signup
-        // immediately creates a session, the upload happens
-        // here.
+        // Handle profile creation error.
         // ----------------------------------------------------
 
-        if (avatarFile && data.session) {
+        if (profileError) {
+
+            console.error(
+                "Profile creation error:",
+                profileError
+            );
+
+            /*
+             * IMPORTANT:
+             *
+             * We do not attempt to delete the Auth account
+             * from the browser.
+             *
+             * Supabase's service-role account would be required
+             * for administrative user deletion.
+             */
+
+            throw profileError;
+        }
+
+
+        // ====================================================
+        // STEP 3 — UPLOAD PROFILE IMAGE
+        // ====================================================
+
+        let finalProfile =
+            createdProfile;
+
+
+        if (
+            avatarFile &&
+            data.session
+        ) {
 
             try {
 
-                await uploadProfileImage(
-                    data.user.id,
-                    avatarFile
-                );
+                const avatarUrl =
+                    await uploadProfileImage(
+                        userId,
+                        avatarFile
+                    );
+
+
+                /*
+                 * Update our local profile object so the UI
+                 * immediately knows about the image.
+                 */
+
+                finalProfile = {
+
+                    ...createdProfile,
+
+                    avatar_url:
+                        avatarUrl
+                };
 
             } catch (avatarError) {
 
@@ -586,22 +723,40 @@ export function AuthProvider({ children }) {
                 );
 
                 /*
-                 * We do not delete the newly created account
-                 * if the image upload fails.
+                 * We intentionally do not fail the entire
+                 * registration because of an image-upload
+                 * problem.
                  *
-                 * The user can still log in and add/change
-                 * their profile image later from the Profile
-                 * page.
+                 * The user can add/change their image later
+                 * from the Profile page.
                  */
             }
         }
 
 
-        // ----------------------------------------------------
-        // Return the Supabase response.
-        // ----------------------------------------------------
+        // ====================================================
+        // STEP 4 — UPDATE AUTH STATE
+        // ====================================================
 
-        return data;
+        if (data.session) {
+
+            setUser(data.user);
+
+            setProfile(finalProfile);
+        }
+
+
+        // ====================================================
+        // RETURN SIGNUP RESULT
+        // ====================================================
+
+        return {
+
+            ...data,
+
+            profile:
+                finalProfile
+        };
     };
 
 
@@ -614,7 +769,6 @@ export function AuthProvider({ children }) {
         password
     }) => {
 
-        // Basic validation.
         if (!email || !password) {
 
             throw new Error(
@@ -623,7 +777,6 @@ export function AuthProvider({ children }) {
         }
 
 
-        // Authenticate the user.
         const {
             data,
             error
@@ -635,14 +788,12 @@ export function AuthProvider({ children }) {
         });
 
 
-        // Handle login errors.
         if (error) {
 
             throw error;
         }
 
 
-        // Make sure Supabase returned a user.
         if (!data?.user) {
 
             throw new Error(
@@ -651,20 +802,17 @@ export function AuthProvider({ children }) {
         }
 
 
-        // Load the user's profile.
+        // Load profile.
         const userProfile =
             await getProfile(
                 data.user.id
             );
 
 
-        // Make sure a profile exists.
+        // Profile must exist.
         if (!userProfile) {
 
-            // Log the user out if their profile
-            // does not exist.
             await supabase.auth.signOut();
-
 
             throw new Error(
                 "Your profile could not be found."
@@ -673,7 +821,7 @@ export function AuthProvider({ children }) {
 
 
         // ----------------------------------------------------
-        // Make sure the role is valid.
+        // Validate role.
         // ----------------------------------------------------
 
         const validRoles = [
@@ -692,19 +840,35 @@ export function AuthProvider({ children }) {
 
             await supabase.auth.signOut();
 
-
             throw new Error(
                 "Your account has an invalid role."
             );
         }
 
 
-        // Return both user and profile.
+        // ----------------------------------------------------
+        // Check whether account is active.
+        // ----------------------------------------------------
+
+        if (
+            userProfile.is_active === false
+        ) {
+
+            await supabase.auth.signOut();
+
+            throw new Error(
+                "Your account has been deactivated."
+            );
+        }
+
+
         return {
 
-            user: data.user,
+            user:
+                data.user,
 
-            profile: userProfile
+            profile:
+                userProfile
         };
     };
 
@@ -715,7 +879,6 @@ export function AuthProvider({ children }) {
 
     const signOut = async () => {
 
-        // Tell Supabase to end the session.
         const {
             error
         } = await supabase.auth.signOut();
@@ -727,7 +890,6 @@ export function AuthProvider({ children }) {
         }
 
 
-        // Clear local authentication state.
         setUser(null);
 
         setProfile(null);
@@ -735,7 +897,7 @@ export function AuthProvider({ children }) {
 
 
     // ========================================================
-    // AUTH CONTEXT VALUE
+    // CONTEXT VALUE
     // ========================================================
 
     const value = {
@@ -758,32 +920,16 @@ export function AuthProvider({ children }) {
     };
 
 
-    // Make the authentication information available
-    // to every component inside AuthProvider.
-
     return (
         <AuthContext.Provider value={value}>
-
             {children}
-
         </AuthContext.Provider>
     );
 }
 
 
 // ============================================================
-// USE AUTH HOOK
-// ============================================================
-//
-// Components can now use:
-//
-// const {
-//     user,
-//     profile,
-//     signIn,
-//     uploadProfileImage
-// } = useAuth();
-//
+// USE AUTH
 // ============================================================
 
 export function useAuth() {

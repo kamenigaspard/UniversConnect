@@ -1,239 +1,484 @@
 /**
- * Application routing configuration.
+ * ============================================================
+ * APPLICATION ROUTING
+ * ============================================================
  *
- * React Router determines which page should be
- * displayed based on the current URL.
+ * This file controls navigation throughout the application.
  *
- * Authentication and role-based protection will be
- * added later after Supabase Auth is implemented.
+ * React Router determines which page is displayed based
+ * on the current URL.
+ *
+ * Authentication and role-based access are handled through
+ * ProtectedRoute.
+ *
+ * Available roles:
+ *
+ * student
+ * teacher
+ * admin
+ * super_admin
+ *
+ * ============================================================
  */
 
 import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
+    BrowserRouter,
+    Routes,
+    Route,
+    Navigate
 } from "react-router-dom";
 
-/**
- * Layouts
- */
+
+// ============================================================
+// LAYOUTS
+// ============================================================
+
 import PublicLayout from "../layouts/PublicLayout";
 import AppLayout from "../layouts/AppLayout";
+
+
+// ============================================================
+// ROUTE PROTECTION
+// ============================================================
+
 import ProtectedRoute from "./ProtectedRoute";
 
-/**
- * Public pages
- */
-import CreatePost from "../pages/CreatePost";
-import LandingPage from "../pages/LandingPage";
-import Login from "../pages/auth/LoginPage";
-import Signup from "../pages/auth/SignUpPage";
-import ForgotPasswordPage
-  from "../pages/auth/ForgotPasswordPage";
-//import VerifyEmail from "../pages/VerifyEmail";
-//import AuthCallback from "../pages/AuthCallback";  
 
-/**
- * Application pages
- */
-import AdminHome from "../pages/AdminHome";
-import SuperAdminHome from "../pages/SuperAdminHome";
+// ============================================================
+// PUBLIC PAGES
+// ============================================================
+
+import LandingPage from "../pages/LandingPage";
+
+import Login from "../pages/auth/LoginPage";
+
+import Signup from "../pages/auth/Signup/SignUpPage";
+
+import ForgotPasswordPage
+    from "../pages/auth/ForgotPasswordPage";
+
+
+// ============================================================
+// APPLICATION HOME PAGES
+// ============================================================
+
 import StudentsHome from "../pages/StudentsHome";
+
+import AdminHome from "../pages/AdminHome";
+
+import SuperAdminHome from "../pages/SuperAdminHome";
+
+
+// ============================================================
+// TEACHER HOME
+// ============================================================
+//
+// IMPORTANT:
+//
+// We now separate teacher and administrator navigation.
+//
+// Teacher:
+//     /teacher-home
+//
+// Administrator:
+//     /admin-home
+//
+// If TeacherHome.jsx does not exist yet, create it next.
+// ============================================================
+
+import TeacherHome from "../pages/TeacherHome";
+
+
+// ============================================================
+// APPLICATION PAGES
+// ============================================================
+
+import CreatePost from "../pages/CreatePost";
+
 import MessagesPage from "../pages/MessagesPage";
+
 import NotificationsPage from "../pages/NotificationsPage";
+
 import RequestsPage from "../pages/RequestsPage";
+
 import ProfilePage from "../pages/ProfilePage";
+
 import SettingsPage from "../pages/SettingsPage";
 
+
+// ============================================================
+// APP ROUTES COMPONENT
+// ============================================================
+
 function AppRoutes() {
-  return (
-    <BrowserRouter>
 
-           <Routes>
+    return (
 
-            {/* =================================================
-                PUBLIC ROUTES
-            ================================================= */}
+        <BrowserRouter>
 
-            <Route
-                path="/landing-page"
-                element={<LandingPage />}
-            />
-            <Route
-                path="/login"
-                element={<Login />}
-            />
+            <Routes>
 
 
-            <Route
-                path="/signup"
-                element={<Signup />}
-            />
+                {/* =================================================
+                    PUBLIC ROUTES
+                ================================================= */}
+
+                <Route
+                    path="/"
+                    element={
+                        <Navigate
+                            to="/landing-page"
+                            replace
+                        />
+                    }
+                />
 
 
-            {/* =================================================
-                STUDENT HOME
-                Only students can access this page.
-            ================================================= */}
-
-            <Route
-                path="/student-home"
-                element={
-
-                    <ProtectedRoute
-                        allowedRoles={[
-                            "student"
-                        ]}
-                    >
-
-                        <StudentsHome />
-
-                    </ProtectedRoute>
-                }
-            />
+                <Route
+                    path="/landing-page"
+                    element={
+                        <LandingPage />
+                    }
+                />
 
 
-            {/* =================================================
-                ADMIN / TEACHER HOME
-                Teachers and admins can access this page.
-            ================================================= */}
-
-            <Route
-                path="/admin-home"
-                element={
-
-                    <ProtectedRoute
-                        allowedRoles={[
-                            "teacher",
-                            "admin"
-                        ]}
-                    >
-
-                        <AdminHome />
-
-                    </ProtectedRoute>
-                }
-            />
+                <Route
+                    path="/login"
+                    element={
+                        <Login />
+                    }
+                />
 
 
-            {/* =================================================
-                SUPER ADMIN HOME
-                Only super admins can access this page.
-            ================================================= */}
+                <Route
+                    path="/signup"
+                    element={
+                        <Signup />
+                    }
+                />
 
-            <Route
-                path="/super-admin-home"
-                element={
 
-                    <ProtectedRoute
-                        allowedRoles={[
-                            "super_admin"
-                        ]}
-                    >
+                <Route
+                    path="/forgot-password"
+                    element={
+                        <ForgotPasswordPage />
+                    }
+                />
 
-                        <SuperAdminHome />
 
-                    </ProtectedRoute>
-                }
-            />
-             <Route
+                {/* =================================================
+                    STUDENT HOME
+                =================================================
+                
+                Only authenticated students can access this page.
+                */}
+
+                <Route
+                    path="/student-home"
+                    element={
+
+                        <ProtectedRoute
+                            allowedRoles={[
+                                "student"
+                            ]}
+                        >
+
+                            <StudentsHome />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    TEACHER HOME
+                =================================================
+                
+                Only teachers can access this page.
+                */}
+
+                <Route
+                    path="/teacher-home"
+                    element={
+
+                        <ProtectedRoute
+                            allowedRoles={[
+                                "teacher"
+                            ]}
+                        >
+
+                            <TeacherHome />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    ADMIN HOME
+                =================================================
+                
+                Only administrators can access this page.
+                */}
+
+                <Route
+                    path="/admin-home"
+                    element={
+
+                        <ProtectedRoute
+                            allowedRoles={[
+                                "admin"
+                            ]}
+                        >
+
+                            <AdminHome />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    SUPER ADMIN HOME
+                =================================================
+                
+                Only Super Admins can access this page.
+                */}
+
+                <Route
+                    path="/super-admin-home"
+                    element={
+
+                        <ProtectedRoute
+                            allowedRoles={[
+                                "super_admin"
+                            ]}
+                        >
+
+                            <SuperAdminHome />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    CREATE POST
+                =================================================
+                
+                Any authenticated user can create a post.
+                
+                Student
+                Teacher
+                Admin
+                Super Admin
+                */}
+
+                <Route
                     path="/create-post"
-                      element={
+                    element={
+
                         <ProtectedRoute>
 
                             <CreatePost />
-                            
+
                         </ProtectedRoute>
+
                     }
-             />
+                />
 
 
-            {/* =================================================
-                UNAUTHORIZED
-            ================================================= */}
+                {/* =================================================
+                    MESSAGES
+                =================================================
+                
+                Any authenticated user can access messaging.
+                */}
 
-            <Route
-                path="/unauthorized"
-                element={
+                <Route
+                    path="/messages"
+                    element={
 
-                    <div className="min-h-screen flex items-center justify-center">
+                        <ProtectedRoute>
 
-                        <div className="text-center">
+                            <MessagesPage />
 
-                            <h1 className="text-4xl font-bold">
-                                Access Denied
-                            </h1>
+                        </ProtectedRoute>
 
-                            <p className="mt-3 text-gray-600">
-                                You do not have permission
-                                to access this page.
-                            </p>
+                    }
+                />
+
+
+                {/* =================================================
+                    NOTIFICATIONS
+                =================================================
+                
+                Any authenticated user can access notifications.
+                */}
+
+                <Route
+                    path="/notifications"
+                    element={
+
+                        <ProtectedRoute>
+
+                            <NotificationsPage />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    REQUESTS
+                =================================================
+                
+                Any authenticated user can access requests.
+                
+                The actual request permissions will be controlled
+                by the database/RLS and application logic.
+                */}
+
+                <Route
+                    path="/requests"
+                    element={
+
+                        <ProtectedRoute>
+
+                            <RequestsPage />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    PROFILE
+                =================================================
+                
+                Every authenticated user has a profile.
+                
+                This page will eventually allow users to:
+                
+                - Change profile photo
+                - Change bio
+                - Edit username
+                - View posts
+                - View profile information
+                ================================================= */}
+
+                <Route
+                    path="/profile"
+                    element={
+
+                        <ProtectedRoute>
+
+                            <ProfilePage />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    SETTINGS
+                =================================================
+                
+                Any authenticated user can access settings.
+                */}
+
+                <Route
+                    path="/settings"
+                    element={
+
+                        <ProtectedRoute>
+
+                            <SettingsPage />
+
+                        </ProtectedRoute>
+
+                    }
+                />
+
+
+                {/* =================================================
+                    UNAUTHORIZED
+                =================================================
+                
+                Displayed when a logged-in user attempts to access
+                a page that their role is not allowed to access.
+                */}
+
+                <Route
+                    path="/unauthorized"
+                    element={
+
+                        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+
+                            <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+
+                                <h1 className="text-4xl font-bold text-gray-900">
+                                    Access Denied
+                                </h1>
+
+
+                                <p className="mt-3 text-gray-600">
+                                    You do not have permission to
+                                    access this page.
+                                </p>
+
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        window.history.back();
+                                    }}
+                                    className="mt-6 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+                                >
+                                    Go Back
+                                </button>
+
+                            </div>
 
                         </div>
 
-                    </div>
-                }
-            />
+                    }
+                />
 
 
-            {/* =================================================
-                DEFAULT ROUTE
-            ================================================= */}
+                {/* =================================================
+                    UNKNOWN ROUTES
+                =================================================
+                
+                Any URL that doesn't exist is redirected to
+                the landing page.
+                
+                We intentionally have ONLY ONE wildcard route.
+                */}
 
-            <Route
-                path="*"
-                element={
-                    <Navigate
-                        to="/login"
-                        replace
-                    />
-                }
-            />
-
-        
-
-          <Route
-            path="/messages"
-            element={<MessagesPage />}
-          />
-
-          <Route
-            path="/notifications"
-            element={<NotificationsPage />}
-          />
-
-          <Route
-            path="/requests"
-            element={<RequestsPage />}
-          />
-
-          <Route
-            path="/profile"
-            element={<ProfilePage />}
-          />
-
-          <Route
-            path="/settings"
-            element={<SettingsPage />}
-          />
-
-        
+                <Route
+                    path="*"
+                    element={
+                        <Navigate
+                            to="/landing-page"
+                            replace
+                        />
+                    }
+                />
 
 
-        {/* =================================================
-            FALLBACK ROUTE
-            ================================================= */}
+            </Routes>
 
-        <Route
-          path="*"
-          element={<Navigate to="/" replace />}
-        />
-
-      </Routes>
-
-    </BrowserRouter>
-  );
+        </BrowserRouter>
+    );
 }
+
 
 export default AppRoutes;

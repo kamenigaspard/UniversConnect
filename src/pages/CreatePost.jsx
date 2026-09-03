@@ -4,6 +4,7 @@ import {
     Video,
     X,
     Send,
+ArrowLeftCircle,
     Loader2
 } from "lucide-react";
 
@@ -516,7 +517,24 @@ export default function CreatePost({ onPostCreated }) {
                 HEADER
             ================================================== */}
 
+
             <div className="mb-4 flex items-center gap-3">
+                     <button
+                          type="button"
+                          onClick={() =>
+                          {
+                            if(window.history.length >2){
+                                navigate(-1)
+                            }
+                          }
+                          }
+                          className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
+                          aria-label=""
+                        >
+            
+                         <ArrowLeftCircle />
+            
+                        </button>
 
                 <img
                     src={
@@ -558,7 +576,7 @@ export default function CreatePost({ onPostCreated }) {
                     onChange={(event) =>
                         setContent(event.target.value)
                     }
-                    maxLength={2200}
+                    maxLength={5000}
                     placeholder="What's happening at the university?"
                     rows={4}
                     className="w-full resize-none rounded-xl border border-gray-200 p-3 text-sm outline-none transition focus:border-blue-500"
@@ -571,7 +589,7 @@ export default function CreatePost({ onPostCreated }) {
 
                     <span className="text-xs text-gray-400">
 
-                        {content.length}/2200
+                        {content.length}/5000
 
                     </span>
 
