@@ -6,7 +6,7 @@
 //
 // Features:
 // 1. Display post text.
-// 2. Display image/video.
+// 2. Display image/video with a subtle background gradient and rounded corners.
 // 3. Like/unlike.
 // 4. Display comment count.
 // 5. Open comments in a separate modal.
@@ -62,19 +62,6 @@ const EDIT_WINDOW_MS =
 // ============================================================
 // STORAGE HELPER
 // ============================================================
-//
-// Converts a public Supabase Storage URL into the path
-// required by storage.remove().
-//
-// Example:
-//
-// https://project.supabase.co/storage/v1/object/public/
-// post-media/user-id/image.jpg
-//
-// becomes:
-//
-// user-id/image.jpg
-// ============================================================
 
 const getStoragePathFromPublicUrl = (url) => {
 
@@ -121,17 +108,6 @@ const getStoragePathFromPublicUrl = (url) => {
 const PostCard = ({
   post,
   currentUserId,
-
-  // ----------------------------------------------------------
-  // OPTIONAL CALLBACKS
-  // ----------------------------------------------------------
-  //
-  // These callbacks allow StudentHome to update its state
-  // without refreshing the entire browser later.
-  //
-  // They have default functions so PostCard will NOT crash
-  // if StudentHome hasn't provided them yet.
-  // ----------------------------------------------------------
 
   onPostUpdated = () => {},
   onPostDeleted = () => {},
@@ -195,15 +171,12 @@ const PostCard = ({
   // EDIT MEDIA STATES
   // ============================================================
 
-  // Newly selected image/video.
   const [editMediaFile, setEditMediaFile] =
     useState(null);
 
-  // Temporary browser preview URL.
   const [editMediaPreview, setEditMediaPreview] =
     useState(null);
 
-  // Whether the current media should be removed.
   const [removeEditMedia, setRemoveEditMedia] =
     useState(false);
 
@@ -258,31 +231,25 @@ const PostCard = ({
 
   const canEditPost = () => {
 
-    // Only the owner can edit.
     if (!isOwner) {
       return false;
     }
 
-    // Deleted posts cannot be edited.
     if (post.is_deleted) {
       return false;
     }
 
-    // Get post creation time.
     const createdAt =
       new Date(
         post.created_at
       ).getTime();
 
-    // Current time.
     const now =
       Date.now();
 
-    // Time elapsed since post creation.
     const elapsed =
       now - createdAt;
 
-    // Edit is allowed during the first 15 minutes.
     return (
       elapsed <= EDIT_WINDOW_MS
     );
@@ -337,10 +304,6 @@ const PostCard = ({
 
       try {
 
-        // ------------------------------------------------------
-        // GET TOTAL LIKE COUNT
-        // ------------------------------------------------------
-
         const {
           count,
           error: countError,
@@ -371,10 +334,6 @@ const PostCard = ({
 
         }
 
-
-        // ------------------------------------------------------
-        // CHECK WHETHER CURRENT USER LIKED THE POST
-        // ------------------------------------------------------
 
         if (currentUserId) {
 
@@ -487,15 +446,12 @@ const PostCard = ({
   };
 
 
-  // Load comment count when the post changes.
   useEffect(() => {
 
     loadCommentCount();
 
   }, [post.id]);
-  // -------------------------------------------------------
-  // CLOSE COMMENTS
-  // -------------------------------------------------------
+
 
   const closeComments = () => {
     setShowComments(false);
@@ -505,26 +461,10 @@ const PostCard = ({
   // ============================================================
   // COMMENT COUNT CALLBACK
   // ============================================================
-  //
-  // THIS FIXES:
-  //
-  // "onCommentCountChange is not a function"
-  //
-  // CommentSection can now safely call:
-  //
-  // onCommentCountChange(...)
-  //
-  // after adding or deleting a comment.
-  // ============================================================
 
   const handleCommentCountChange = (
     change
   ) => {
-
-    // ----------------------------------------------------------
-    // CASE 1:
-    // CommentSection provides the NEW TOTAL COUNT.
-    // ----------------------------------------------------------
 
     if (
       typeof change === "number" &&
@@ -538,11 +478,6 @@ const PostCard = ({
       return;
     }
 
-
-    // ----------------------------------------------------------
-    // CASE 2:
-    // CommentSection provides +1 or -1.
-    // ----------------------------------------------------------
 
     if (
       change === 1 ||
@@ -560,13 +495,6 @@ const PostCard = ({
       return;
     }
 
-
-    // ----------------------------------------------------------
-    // CASE 3:
-    // No value supplied.
-    //
-    // We simply ask Supabase for the current count.
-    // ----------------------------------------------------------
 
     loadCommentCount();
 
@@ -593,10 +521,6 @@ const PostCard = ({
 
 
     try {
-
-      // --------------------------------------------------------
-      // REMOVE LIKE
-      // --------------------------------------------------------
 
       if (isLiked) {
 
@@ -630,13 +554,7 @@ const PostCard = ({
             )
         );
 
-      }
-
-      // --------------------------------------------------------
-      // ADD LIKE
-      // --------------------------------------------------------
-
-      else {
+      } else {
 
         const {
           error,
@@ -707,13 +625,11 @@ const PostCard = ({
     }
 
 
-    // Load current text.
     setEditContent(
       post.content || ""
     );
 
 
-    // Reset media state.
     setEditMediaFile(null);
 
     setEditMediaPreview(null);
@@ -723,11 +639,9 @@ const PostCard = ({
     setEditError("");
 
 
-    // Close menu.
     setShowMenu(false);
 
 
-    // Open modal.
     setShowEditModal(true);
 
   };
@@ -750,10 +664,6 @@ const PostCard = ({
     }
 
 
-    // ----------------------------------------------------------
-    // SUPPORTED IMAGE TYPES
-    // ----------------------------------------------------------
-
     const allowedImageTypes = [
       "image/jpeg",
       "image/png",
@@ -762,20 +672,12 @@ const PostCard = ({
     ];
 
 
-    // ----------------------------------------------------------
-    // SUPPORTED VIDEO TYPES
-    // ----------------------------------------------------------
-
     const allowedVideoTypes = [
       "video/mp4",
       "video/webm",
       "video/quicktime",
     ];
 
-
-    // ----------------------------------------------------------
-    // VALIDATE FILE TYPE
-    // ----------------------------------------------------------
 
     if (
       !allowedImageTypes.includes(
@@ -795,10 +697,6 @@ const PostCard = ({
     }
 
 
-    // ----------------------------------------------------------
-    // VALIDATE IMAGE SIZE
-    // ----------------------------------------------------------
-
     if (
       allowedImageTypes.includes(
         file.type
@@ -815,10 +713,6 @@ const PostCard = ({
 
     }
 
-
-    // ----------------------------------------------------------
-    // VALIDATE VIDEO SIZE
-    // ----------------------------------------------------------
 
     if (
       allowedVideoTypes.includes(
@@ -837,10 +731,6 @@ const PostCard = ({
     }
 
 
-    // ----------------------------------------------------------
-    // CLEAN OLD PREVIEW
-    // ----------------------------------------------------------
-
     if (editMediaPreview) {
 
       URL.revokeObjectURL(
@@ -850,25 +740,15 @@ const PostCard = ({
     }
 
 
-    // ----------------------------------------------------------
-    // SAVE NEW FILE
-    // ----------------------------------------------------------
-
     setEditMediaFile(
       file
     );
 
 
-    // Selecting a new file means
-    // we don't want to remove media.
     setRemoveEditMedia(
       false
     );
 
-
-    // ----------------------------------------------------------
-    // CREATE LOCAL PREVIEW
-    // ----------------------------------------------------------
 
     const previewUrl =
       URL.createObjectURL(
@@ -932,10 +812,6 @@ const PostCard = ({
     event.preventDefault();
 
 
-    // ----------------------------------------------------------
-    // OWNERSHIP CHECK
-    // ----------------------------------------------------------
-
     if (!isOwner) {
 
       setEditError(
@@ -946,10 +822,6 @@ const PostCard = ({
 
     }
 
-
-    // ----------------------------------------------------------
-    // EDIT WINDOW CHECK
-    // ----------------------------------------------------------
 
     if (!canEditPost()) {
 
@@ -962,17 +834,9 @@ const PostCard = ({
     }
 
 
-    // ----------------------------------------------------------
-    // CLEAN TEXT
-    // ----------------------------------------------------------
-
     const cleanedContent =
       editContent.trim();
 
-
-    // ----------------------------------------------------------
-    // CHECK FINAL MEDIA STATE
-    // ----------------------------------------------------------
 
     const existingMediaStillExists =
       Boolean(
@@ -986,7 +850,6 @@ const PostCard = ({
       );
 
 
-    // A post must contain text or media.
     if (
       !cleanedContent &&
       !existingMediaStillExists &&
@@ -1007,16 +870,11 @@ const PostCard = ({
     setEditError("");
 
 
-    // Stores the newly uploaded file path.
     let uploadedMediaPath =
       null;
 
 
     try {
-
-      // ========================================================
-      // NEW MEDIA VALUES
-      // ========================================================
 
       let newMediaUrl =
         null;
@@ -1025,15 +883,7 @@ const PostCard = ({
         null;
 
 
-      // ========================================================
-      // UPLOAD NEW MEDIA
-      // ========================================================
-
       if (editMediaFile) {
-
-        // ------------------------------------------------------
-        // Determine whether it is image or video.
-        // ------------------------------------------------------
 
         newMediaType =
           editMediaFile.type.startsWith(
@@ -1043,10 +893,6 @@ const PostCard = ({
             : "video";
 
 
-        // ------------------------------------------------------
-        // Get file extension.
-        // ------------------------------------------------------
-
         const fileExtension =
           editMediaFile.name
             .split(".")
@@ -1055,25 +901,13 @@ const PostCard = ({
           "file";
 
 
-        // ------------------------------------------------------
-        // Create unique filename.
-        // ------------------------------------------------------
-
         const fileName =
           `${crypto.randomUUID()}.${fileExtension}`;
 
 
-        // ------------------------------------------------------
-        // User's own Storage folder.
-        // ------------------------------------------------------
-
         uploadedMediaPath =
           `${currentUserId}/${fileName}`;
 
-
-        // ------------------------------------------------------
-        // Upload.
-        // ------------------------------------------------------
 
         const {
           error: uploadError,
@@ -1100,10 +934,6 @@ const PostCard = ({
         }
 
 
-        // ------------------------------------------------------
-        // Get public URL.
-        // ------------------------------------------------------
-
         const {
           data:
             publicUrlData,
@@ -1120,10 +950,6 @@ const PostCard = ({
       }
 
 
-      // ========================================================
-      // DETERMINE FINAL MEDIA VALUES
-      // ========================================================
-
       let finalMediaUrl =
         post.media_url ||
         null;
@@ -1133,7 +959,6 @@ const PostCard = ({
         null;
 
 
-      // New media replaces old media.
       if (editMediaFile) {
 
         finalMediaUrl =
@@ -1145,7 +970,6 @@ const PostCard = ({
       }
 
 
-      // User removed existing media.
       if (
         removeEditMedia &&
         !editMediaFile
@@ -1160,10 +984,6 @@ const PostCard = ({
       }
 
 
-      // ========================================================
-      // UPDATE DATABASE
-      // ========================================================
-
       const {
         data,
         error: updateError,
@@ -1171,20 +991,16 @@ const PostCard = ({
         .from("posts")
         .update({
 
-          // Updated text.
           content:
             cleanedContent ||
             null,
 
-          // Updated media URL.
           media_url:
             finalMediaUrl,
 
-          // Updated media type.
           media_type:
             finalMediaType,
 
-          // Record edit time.
           edited_at:
             new Date().toISOString(),
 
@@ -1201,14 +1017,8 @@ const PostCard = ({
         .single();
 
 
-      // ========================================================
-      // DATABASE UPDATE FAILED
-      // ========================================================
-
       if (updateError) {
 
-        // Delete newly uploaded file
-        // so we don't leave orphaned files.
         if (uploadedMediaPath) {
 
           await supabase.storage
@@ -1223,10 +1033,6 @@ const PostCard = ({
 
       }
 
-
-      // ========================================================
-      // REMOVE OLD MEDIA
-      // ========================================================
 
       if (
         post.media_url &&
@@ -1256,8 +1062,6 @@ const PostCard = ({
 
           if (removeError) {
 
-            // Database update already succeeded.
-            // Therefore don't treat this as a fatal error.
             console.warn(
               "Old media could not be removed:",
               removeError
@@ -1270,10 +1074,6 @@ const PostCard = ({
       }
 
 
-      // ========================================================
-      // UPDATE PARENT COMPONENT
-      // ========================================================
-
       if (data) {
 
         onPostUpdated(
@@ -1282,10 +1082,6 @@ const PostCard = ({
 
       }
 
-
-      // ========================================================
-      // CLEAN UP
-      // ========================================================
 
       if (editMediaPreview) {
 
@@ -1345,7 +1141,6 @@ const PostCard = ({
     setShowMenu(false);
 
 
-    // Ask for confirmation.
     const confirmed =
       window.confirm(
         "Are you sure you want to delete this post?"
@@ -1359,10 +1154,6 @@ const PostCard = ({
 
     try {
 
-      // --------------------------------------------------------
-      // SOFT DELETE
-      // --------------------------------------------------------
-
       const {
         data,
         error,
@@ -1370,8 +1161,6 @@ const PostCard = ({
         .from("posts")
         .update({
 
-          // Keep database record for
-          // moderation/audit purposes.
           is_deleted:
             true,
 
@@ -1392,10 +1181,6 @@ const PostCard = ({
         throw error;
       }
 
-
-      // --------------------------------------------------------
-      // TELL PARENT COMPONENT
-      // --------------------------------------------------------
 
       onPostDeleted(
         post.id,
@@ -1438,7 +1223,6 @@ const PostCard = ({
 
     try {
 
-      // Mobile devices normally support Web Share.
       if (
         navigator.share
       ) {
@@ -1461,7 +1245,6 @@ const PostCard = ({
       }
 
 
-      // Desktop fallback.
       if (
         navigator.clipboard
       ) {
@@ -1479,14 +1262,12 @@ const PostCard = ({
       }
 
 
-      // Final fallback.
       alert(
         `Post link: ${postUrl}`
       );
 
     } catch (error) {
 
-      // User closing the share dialog is not an error.
       if (
         error.name !==
         "AbortError"
@@ -1510,7 +1291,6 @@ const PostCard = ({
 
   const handleOpenReport = () => {
 
-    // Owner cannot report own post.
     if (isOwner) {
 
       alert(
@@ -1782,15 +1562,9 @@ const PostCard = ({
 
               <div className="absolute right-0 top-11 z-30 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
 
-                {/* ==================================================
-                    OWNER OPTIONS
-                    ================================================== */}
-
                 {isOwner ? (
 
                   <>
-
-                    {/* EDIT */}
 
                     {canEditPost() && (
 
@@ -1823,8 +1597,6 @@ const PostCard = ({
                     )}
 
 
-                    {/* DELETE */}
-
                     <button
                       type="button"
                       onClick={
@@ -1846,10 +1618,6 @@ const PostCard = ({
                   </>
 
                 ) : (
-
-                  /* ==================================================
-                     OTHER USERS
-                     ================================================== */
 
                   <button
                     type="button"
@@ -1886,7 +1654,7 @@ const PostCard = ({
 
         {post.content && (
 
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-3">
 
             <p className="text-gray-800 whitespace-pre-wrap">
 
@@ -1911,36 +1679,39 @@ const PostCard = ({
 
 
         {/* ====================================================
-            IMAGE
+            POST MEDIA (IMAGE / VIDEO) WITH GRADIENT BACKGROUND
             ==================================================== */}
 
-        {post.media_type === "image" &&
-          post.media_url && (
+        {post.media_url && (
 
-            <img
-              src={post.media_url}
-              alt="Post"
-              className="w-full max-h-[600px] object-cover"
-            />
+          <div className="mx-4 mb-4 
+          overflow-hidden 
+          rounded-xl 
+          bg-gradient-to-tr from-slate-100 via-blue-50 to-indigo-100 p-1 shadow-inner">
 
-          )}
+            {post.media_type === "video" ? (
 
+              <video
+                src={post.media_url}
+                controls
+                playsInline
+                className="w-full max-h-[600px] rounded-lg object-cover bg-black"
+              />
 
-        {/* ====================================================
-            VIDEO
-            ==================================================== */}
+            ) : (
 
-        {post.media_type === "video" &&
-          post.media_url && (
+              <img
+                src={post.media_url}
+                alt="Post media"
+                loading="lazy"
+                className="w-full max-h-[600px] rounded-lg object-cover shadow-sm transition-transform duration-300 hover:scale-[1.01]"
+              />
 
-            <video
-              src={post.media_url}
-              controls
-              playsInline
-              className="w-full max-h-[600px] bg-black"
-            />
+            )}
 
-          )}
+          </div>
+
+        )}
 
 
         {/* ====================================================
@@ -2001,10 +1772,7 @@ const PostCard = ({
             </button>
 
 
-
-            {/* ==================================================
-                SHARE BUTTON
-            ================================================== */}
+            {/* SHARE */}
 
             <button
               type="button"
@@ -2013,7 +1781,6 @@ const PostCard = ({
             >
 
               <Share2 size={21} />
-
 
               <span className="text-sm">
                 Share
@@ -2037,10 +1804,6 @@ const PostCard = ({
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
 
           <div className="bg-white w-full max-w-lg max-h-[90vh] rounded-2xl shadow-xl overflow-y-auto">
-
-            {/* ==================================================
-                EDIT HEADER
-                ================================================== */}
 
             <div className="flex items-center justify-between p-5 border-b">
 
@@ -2075,20 +1838,12 @@ const PostCard = ({
             </div>
 
 
-            {/* ==================================================
-                EDIT FORM
-                ================================================== */}
-
             <form
               onSubmit={
                 handleSaveEdit
               }
               className="p-5"
             >
-
-              {/* ==================================================
-                  TEXT
-                  ================================================== */}
 
               <label className="block text-sm font-medium text-gray-700 mb-2">
 
@@ -2125,10 +1880,6 @@ const PostCard = ({
 
               </div>
 
-
-              {/* ==================================================
-                  CURRENT MEDIA
-                  ================================================== */}
 
               {post.media_url &&
                 !editMediaPreview &&
@@ -2172,10 +1923,6 @@ const PostCard = ({
               )}
 
 
-              {/* ==================================================
-                  NEW MEDIA PREVIEW
-                  ================================================== */}
-
               {editMediaPreview && (
 
                 <div className="mt-5">
@@ -2214,8 +1961,6 @@ const PostCard = ({
                   </div>
 
 
-                  {/* IMAGE PREVIEW */}
-
                   {editMediaFile?.type.startsWith(
                     "image/"
                   ) && (
@@ -2230,8 +1975,6 @@ const PostCard = ({
 
                   )}
 
-
-                  {/* VIDEO PREVIEW */}
 
                   {editMediaFile?.type.startsWith(
                     "video/"
@@ -2252,10 +1995,6 @@ const PostCard = ({
 
               )}
 
-
-              {/* ==================================================
-                  REMOVE CURRENT MEDIA
-                  ================================================== */}
 
               {post.media_url &&
                 !editMediaFile && (
@@ -2283,10 +2022,6 @@ const PostCard = ({
 
               )}
 
-
-              {/* ==================================================
-                  ADD OR REPLACE MEDIA
-                  ================================================== */}
 
               <div className="mt-5">
 
@@ -2335,10 +2070,6 @@ const PostCard = ({
               </div>
 
 
-              {/* ==================================================
-                  EDIT ERROR
-                  ================================================== */}
-
               {editError && (
 
                 <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm">
@@ -2349,10 +2080,6 @@ const PostCard = ({
 
               )}
 
-
-              {/* ==================================================
-                  EDIT BUTTONS
-                  ================================================== */}
 
               <div className="flex gap-3 mt-5">
 
@@ -2405,10 +2132,6 @@ const PostCard = ({
 
           <div className="bg-white w-full sm:max-w-lg max-h-[85vh] rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col">
 
-            {/* ------------------------------------------------
-                COMMENTS HEADER
-                ------------------------------------------------ */}
-
             <div className="flex items-center justify-between p-4 border-b">
 
               <h2 className="font-semibold text-lg">
@@ -2436,10 +2159,6 @@ const PostCard = ({
             </div>
 
 
-            {/* ------------------------------------------------
-                COMMENTS CONTENT
-                ------------------------------------------------ */}
-
             <div className="overflow-y-auto p-4">
 
               <CommentSection
@@ -2451,16 +2170,6 @@ const PostCard = ({
                   currentUserId
                 }
 
-                // ==================================================
-                // THIS IS THE IMPORTANT FIX
-                // ==================================================
-                //
-                // CommentSection can now safely call:
-                //
-                // onCommentCountChange(...)
-                //
-                // after creating or deleting comments.
-                //
                 onCommentCountChange={
                   handleCommentCountChange
                 }
@@ -2486,10 +2195,6 @@ const PostCard = ({
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
 
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl">
-
-            {/* ------------------------------------------------
-                REPORT HEADER
-                ------------------------------------------------ */}
 
             <div className="flex items-center justify-between p-5 border-b">
 
@@ -2525,10 +2230,6 @@ const PostCard = ({
 
             </div>
 
-
-            {/* ------------------------------------------------
-                REPORT FORM
-                ------------------------------------------------ */}
 
             <form
               onSubmit={
@@ -2622,10 +2323,6 @@ const PostCard = ({
               />
 
 
-              {/* ------------------------------------------------
-                  REPORT MESSAGE
-                  ------------------------------------------------ */}
-
               {reportMessage && (
 
                 <div
@@ -2651,10 +2348,6 @@ const PostCard = ({
 
               )}
 
-
-              {/* ------------------------------------------------
-                  REPORT BUTTONS
-                  ------------------------------------------------ */}
 
               <div className="flex gap-3 mt-5">
 
