@@ -1,20 +1,32 @@
 // ============================================================
 // MessagesPage.jsx
 // ============================================================
+//
 // This page handles:
+//
 // 1. Displaying the user's conversations
-// 2. Searching for other users
-// 3. Starting a private conversation
+// 2. Searching for other university users
+// 3. Starting private conversations
 // 4. Sending messages
-// 5. Displaying messages in the selected conversation
+// 5. Loading messages
+// 6. Message requests
+// 7. Temporary messaging sessions
+// 8. Session expiration
+// 9. Re-requesting after expiration
+// 10. Opening conversations from /messages?user=USER_ID
 //
 // IMPORTANT:
-// The database function create_private_conversation()
-// controls whether the user is allowed to start the conversation.
+// The database remains the final security authority.
+// Frontend checks improve the user experience, while
+// Supabase RLS/RPC functions enforce the real permissions.
+//
 // ============================================================
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 
 import {
   Search,
@@ -24,10 +36,21 @@ import {
   User,
   Loader2,
   AlertCircle,
+  Clock,
+  RefreshCw,
 } from "lucide-react";
 
-import { supabase } from "../lib/supabase";
-import { useAuth } from "../contexts/AuthContext";
+import {
+  useSearchParams,
+} from "react-router-dom";
+
+import {
+  supabase,
+} from "../lib/supabase";
+
+import {
+  useAuth,
+} from "../contexts/AuthContext";
 
 
 // ============================================================
@@ -37,318 +60,840 @@ import { useAuth } from "../contexts/AuthContext";
 export default function MessagesPage() {
 
   // ----------------------------------------------------------
-  // Get the authenticated user.
+  // Authentication information
   // ----------------------------------------------------------
 
-  const { user, profile } = useAuth();
+  const {
+    user,
+    profile,
+  } = useAuth();
+
 
   // ----------------------------------------------------------
-  // Read URL parameters.
+  // URL parameters
   //
   // Example:
   //
   // /messages?user=USER_ID
   //
-  // This allows another page, such as RequestsPage,
-  // to open a conversation with a specific user.
+  // This allows RequestsPage and other pages to open
+  // a conversation with a specific user.
   // ----------------------------------------------------------
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [
+    searchParams,
+    setSearchParams,
+  ] = useSearchParams();
 
-  const userFromUrl = searchParams.get("user");
+  const userFromUrl =
+    searchParams.get("user");
 
 
   // ==========================================================
   // STATE
   // ==========================================================
 
-  // List of existing conversations.
-  const [conversations, setConversations] = useState([]);
+  // Existing conversations.
+  const [
+    conversations,
+    setConversations,
+  ] = useState([]);
+
 
   // Currently selected conversation.
-  const [activeConversation, setActiveConversation] = useState(null);
+  const [
+    activeConversation,
+    setActiveConversation,
+  ] = useState(null);
 
-  // Messages belonging to the active conversation.
-  const [messages, setMessages] = useState([]);
 
-  // Message currently being typed.
-  const [messageText, setMessageText] = useState("");
+  // Messages in selected conversation.
+  const [
+    messages,
+    setMessages,
+  ] = useState([]);
 
-  // Search text for finding users.
-  const [searchText, setSearchText] = useState("");
+
+  // Message input.
+  const [
+    messageText,
+    setMessageText,
+  ] = useState("");
+
+
+  // User search.
+  const [
+    searchText,
+    setSearchText,
+  ] = useState("");
+
 
   // Search results.
-  const [searchResults, setSearchResults] = useState([]);
+  const [
+    searchResults,
+    setSearchResults,
+  ] = useState([]);
+
 
   // Loading states.
-  const [loadingConversations, setLoadingConversations] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [
+    loadingConversations,
+    setLoadingConversations,
+  ] = useState(true);
 
-  // General error message.
-  const [error, setError] = useState("");
+  const [
+    loadingMessages,
+    setLoadingMessages,
+  ] = useState(false);
 
-  // User that requires an accepted request.
-  const [requestUser, setRequestUser] = useState(null);
+  const [
+    searching,
+    setSearching,
+  ] = useState(false);
 
-  // Text that will accompany a message request.
-  const [requestMessage, setRequestMessage] = useState("");
+  const [
+    sending,
+    setSending,
+  ] = useState(false);
 
-  // Whether a request is currently being sent.
-  const [sendingRequest, setSendingRequest] = useState(false);
+
+  // General error.
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+
+  // Success message.
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
+
+
+  // User who needs a request.
+  const [
+    requestUser,
+    setRequestUser,
+  ] = useState(null);
+
+
+  // Request introductory message.
+  const [
+    requestMessage,
+    setRequestMessage,
+  ] = useState("");
+
+
+  // Request sending state.
+  const [
+    sendingRequest,
+    setSendingRequest,
+  ] = useState(false);
+
+
+  // Current temporary messaging session.
+  const [
+    activeSession,
+    setActiveSession,
+  ] = useState(null);
+
+
+  // Current time.
+  //
+  // This is updated every second so that the session
+  // countdown remains accurate.
+  const [
+    currentTime,
+    setCurrentTime,
+  ] = useState(Date.now());
+
+
+  // ==========================================================
+  // CURRENT TIME
+  // ==========================================================
+
+  useEffect(() => {
+
+    const timer =
+      setInterval(() => {
+
+        setCurrentTime(
+          Date.now()
+        );
+
+      }, 1000);
+
+
+    return () => {
+      clearInterval(timer);
+    };
+
+  }, []);
+
+
+  // ==========================================================
+  // HELPERS
+  // ==========================================================
+
+  // ----------------------------------------------------------
+  // Format time
+  // ----------------------------------------------------------
+
+  function formatTime(date) {
+
+    if (!date) {
+      return "";
+    }
+
+    return new Date(
+      date
+    ).toLocaleTimeString(
+      [],
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+      }
+    );
+  }
+
+
+  // ----------------------------------------------------------
+  // Format date
+  // ----------------------------------------------------------
+
+  function formatDate(date) {
+
+    if (!date) {
+      return "";
+    }
+
+    return new Date(
+      date
+    ).toLocaleString(
+      [],
+      {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }
+    );
+  }
+
+
+  // ----------------------------------------------------------
+  // Role label
+  // ----------------------------------------------------------
+
+  function roleLabel(role) {
+
+    if (!role) {
+      return "";
+    }
+
+    return role
+      .replace("_", " ")
+      .replace(
+        /\b\w/g,
+        (letter) =>
+          letter.toUpperCase()
+      );
+  }
+
+
+  // ----------------------------------------------------------
+  // Determine whether a session is active
+  // ----------------------------------------------------------
+
+  function isSessionActive(session) {
+
+    if (!session) {
+      return false;
+    }
+
+    if (!session.is_active) {
+      return false;
+    }
+
+    if (!session.expires_at) {
+      return false;
+    }
+
+    return (
+      new Date(
+        session.expires_at
+      ).getTime() > currentTime
+    );
+  }
+
+
+  // ----------------------------------------------------------
+  // Remaining session time
+  // ----------------------------------------------------------
+
+  function getRemainingSessionTime() {
+
+    if (!activeSession) {
+      return "";
+    }
+
+    const expires =
+      new Date(
+        activeSession.expires_at
+      ).getTime();
+
+    const difference =
+      expires - currentTime;
+
+
+    if (difference <= 0) {
+      return "Expired";
+    }
+
+
+    const totalSeconds =
+      Math.floor(
+        difference / 1000
+      );
+
+
+    const hours =
+      Math.floor(
+        totalSeconds / 3600
+      );
+
+
+    const minutes =
+      Math.floor(
+        (totalSeconds % 3600) / 60
+      );
+
+
+    const seconds =
+      totalSeconds % 60;
+
+
+    if (hours > 0) {
+
+      return `${hours}h ${minutes}m ${seconds}s`;
+
+    }
+
+
+    if (minutes > 0) {
+
+      return `${minutes}m ${seconds}s`;
+
+    }
+
+
+    return `${seconds}s`;
+  }
+
+
+  // ----------------------------------------------------------
+  // Determine whether a request is required
+  // ----------------------------------------------------------
+  //
+  // Teacher/Admin -> Student:
+  // No request required.
+  //
+  // Everything else:
+  // Request/session required.
+  //
+  // Super Admin is handled separately.
+  // ----------------------------------------------------------
+
+  function requiresMessagingRequest(otherUser) {
+
+    if (!otherUser) {
+      return false;
+    }
+
+
+    // Super Admin has a separate messaging system.
+    if (
+      otherUser.role === "super_admin"
+    ) {
+      return true;
+    }
+
+
+    // Teacher/Admin can directly message students.
+    if (
+      (
+        profile?.role === "teacher" ||
+        profile?.role === "admin"
+      ) &&
+      otherUser.role === "student"
+    ) {
+
+      return false;
+    }
+
+
+    // All other combinations require
+    // an accepted temporary messaging session.
+    return true;
+  }
 
 
   // ==========================================================
   // LOAD CONVERSATIONS
   // ==========================================================
 
+  const loadConversations =
+    useCallback(
+      async () => {
+
+        if (!user?.id) {
+          return;
+        }
+
+
+        try {
+
+          setLoadingConversations(
+            true
+          );
+
+          setError("");
+
+
+          // --------------------------------------------------
+          // Get active conversation memberships.
+          // --------------------------------------------------
+
+          const {
+            data: memberships,
+            error: membershipError,
+          } = await supabase
+            .from(
+              "conversation_members"
+            )
+            .select(`
+              conversation_id,
+              last_read_at,
+              is_muted
+            `)
+            .eq(
+              "user_id",
+              user.id
+            )
+            .eq(
+              "is_active",
+              true
+            );
+
+
+          if (membershipError) {
+            throw membershipError;
+          }
+
+
+          if (
+            !memberships ||
+            memberships.length === 0
+          ) {
+
+            setConversations([]);
+
+            return;
+          }
+
+
+          // --------------------------------------------------
+          // Extract conversation IDs.
+          // --------------------------------------------------
+
+          const conversationIds =
+            memberships.map(
+              (item) =>
+                item.conversation_id
+            );
+
+
+          // --------------------------------------------------
+          // Load conversations.
+          // --------------------------------------------------
+
+          const {
+            data: conversationRows,
+            error: conversationError,
+          } = await supabase
+            .from(
+              "conversations"
+            )
+            .select(`
+              id,
+              participant_one_id,
+              participant_two_id,
+              type,
+              name,
+              description,
+              avatar_url,
+              updated_at
+            `)
+            .in(
+              "id",
+              conversationIds
+            )
+            .order(
+              "updated_at",
+              {
+                ascending: false,
+              }
+            );
+
+
+          if (conversationError) {
+            throw conversationError;
+          }
+
+
+          // --------------------------------------------------
+          // Find other participants.
+          // --------------------------------------------------
+
+          const otherUserIds =
+            (conversationRows || [])
+              .map(
+                (conversation) => {
+
+                  if (
+                    conversation.participant_one_id ===
+                    user.id
+                  ) {
+
+                    return conversation.participant_two_id;
+
+                  }
+
+                  return conversation.participant_one_id;
+
+                }
+              )
+              .filter(Boolean);
+
+
+          const uniqueUserIds =
+            [
+              ...new Set(
+                otherUserIds
+              ),
+            ];
+
+
+          // --------------------------------------------------
+          // Load profiles.
+          // --------------------------------------------------
+
+          let profileRows = [];
+
+
+          if (
+            uniqueUserIds.length > 0
+          ) {
+
+            const {
+              data,
+              error: profileError,
+            } = await supabase
+              .from(
+                "profiles"
+              )
+              .select(`
+                id,
+                full_name,
+                username,
+                avatar_url,
+                role,
+                school_id
+              `)
+              .in(
+                "id",
+                uniqueUserIds
+              );
+
+
+            if (profileError) {
+              throw profileError;
+            }
+
+
+            profileRows =
+              data || [];
+          }
+
+
+          // --------------------------------------------------
+          // Combine conversation/profile information.
+          // --------------------------------------------------
+
+          const formattedConversations =
+            (
+              conversationRows || []
+            ).map(
+              (conversation) => {
+
+                const otherUserId =
+                  conversation
+                    .participant_one_id ===
+                  user.id
+                    ? conversation
+                        .participant_two_id
+                    : conversation
+                        .participant_one_id;
+
+
+                const otherUser =
+                  profileRows.find(
+                    (item) =>
+                      item.id ===
+                      otherUserId
+                  );
+
+
+                return {
+                  ...conversation,
+                  otherUser:
+                    otherUser || null,
+                };
+
+              }
+            );
+
+
+          setConversations(
+            formattedConversations
+          );
+
+        } catch (err) {
+
+          console.error(
+            "Error loading conversations:",
+            err
+          );
+
+
+          setError(
+            err?.message ||
+            "Unable to load your conversations."
+          );
+
+        } finally {
+
+          setLoadingConversations(
+            false
+          );
+        }
+
+      },
+      [user?.id]
+    );
+
+
+  // ==========================================================
+  // INITIAL CONVERSATION LOAD
+  // ==========================================================
+
   useEffect(() => {
 
-    if (!user) {
+    if (!user?.id) {
       return;
     }
 
     loadConversations();
 
-  }, [user]);
+  }, [
+    user?.id,
+    loadConversations,
+  ]);
 
 
   // ==========================================================
-  // LOAD CONVERSATIONS FUNCTION
+  // LOAD ACTIVE MESSAGING SESSION
   // ==========================================================
 
-  async function loadConversations() {
+  const loadActiveSession =
+    useCallback(
+      async (
+        otherUserId
+      ) => {
 
-    try {
+        if (
+          !user?.id ||
+          !otherUserId
+        ) {
 
-      setLoadingConversations(true);
-      setError("");
+          setActiveSession(null);
 
-      // ------------------------------------------------------
-      // Get all active conversation memberships belonging
-      // to the current user.
-      // ------------------------------------------------------
-
-      const { data: memberships, error: membershipError } =
-        await supabase
-          .from("conversation_members")
-          .select(`
-            conversation_id,
-            last_read_at,
-            is_muted
-          `)
-          .eq("user_id", user.id)
-          .eq("is_active", true);
-
-      if (membershipError) {
-        throw membershipError;
-      }
-
-      // No conversations yet.
-      if (!memberships || memberships.length === 0) {
-
-        setConversations([]);
-
-        return;
-      }
-
-
-      // ------------------------------------------------------
-      // Extract conversation IDs.
-      // ------------------------------------------------------
-
-      const conversationIds =
-        memberships.map((item) => item.conversation_id);
-
-
-      // ------------------------------------------------------
-      // Load the conversations.
-      // ------------------------------------------------------
-
-      const { data: conversationRows, error: conversationError } =
-        await supabase
-          .from("conversations")
-          .select(`
-            id,
-            participant_one_id,
-            participant_two_id,
-            type,
-            name,
-            description,
-            avatar_url,
-            updated_at
-          `)
-          .in("id", conversationIds)
-          .order("updated_at", {
-            ascending: false,
-          });
-
-      if (conversationError) {
-        throw conversationError;
-      }
-
-
-      // ------------------------------------------------------
-      // Find the other participant for every conversation.
-      // ------------------------------------------------------
-
-      const otherUserIds = conversationRows
-        .map((conversation) => {
-
-          if (
-            conversation.participant_one_id === user.id
-          ) {
-            return conversation.participant_two_id;
-          }
-
-          return conversation.participant_one_id;
-
-        })
-        .filter(Boolean);
-
-
-      // ------------------------------------------------------
-      // Remove duplicate user IDs.
-      // ------------------------------------------------------
-
-      const uniqueUserIds = [...new Set(otherUserIds)];
-
-
-      // ------------------------------------------------------
-      // Load profiles of conversation participants.
-      // ------------------------------------------------------
-
-      let profileRows = [];
-
-      if (uniqueUserIds.length > 0) {
-
-        const { data, error: profileError } =
-          await supabase
-            .from("profiles")
-            .select(`
-              id,
-              full_name,
-              username,
-              avatar_url,
-              role,
-              school_id
-            `)
-            .in("id", uniqueUserIds);
-
-        if (profileError) {
-          throw profileError;
+          return;
         }
 
-        profileRows = data || [];
-      }
+
+        try {
+
+          const {
+            data,
+            error: sessionError,
+          } = await supabase
+            .from(
+              "messaging_sessions"
+            )
+            .select(`
+              id,
+              requester_id,
+              receiver_id,
+              request_id,
+              conversation_id,
+              started_at,
+              expires_at,
+              duration_hours,
+              is_active,
+              created_at
+            `)
+            .or(
+              `and(requester_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(requester_id.eq.${otherUserId},receiver_id.eq.${user.id})`
+            )
+            .eq(
+              "is_active",
+              true
+            )
+            .gt(
+              "expires_at",
+              new Date().toISOString()
+            )
+            .order(
+              "expires_at",
+              {
+                ascending: false,
+              }
+            )
+            .limit(1)
+            .maybeSingle();
 
 
-      // ------------------------------------------------------
-      // Combine conversations with participant profiles.
-      // ------------------------------------------------------
-
-      const formattedConversations =
-        conversationRows.map((conversation) => {
-
-          const otherUserId =
-            conversation.participant_one_id === user.id
-              ? conversation.participant_two_id
-              : conversation.participant_one_id;
-
-          const otherProfile =
-            profileRows.find(
-              (item) => item.id === otherUserId
-            );
-
-          return {
-            ...conversation,
-            otherUser: otherProfile || null,
-          };
-
-        });
+          if (sessionError) {
+            throw sessionError;
+          }
 
 
-      setConversations(formattedConversations);
+          setActiveSession(
+            data || null
+          );
 
-    } catch (err) {
+        } catch (err) {
 
-      console.error(
-        "Error loading conversations:",
-        err
-      );
+          console.error(
+            "Error loading messaging session:",
+            err
+          );
 
-      setError(
-        err.message ||
-        "Unable to load your conversations."
-      );
+          setActiveSession(null);
+        }
 
-    } finally {
-
-      setLoadingConversations(false);
-    }
-  }
+      },
+      [user?.id]
+    );
 
 
   // ==========================================================
   // LOAD MESSAGES
   // ==========================================================
 
-  async function loadMessages(conversation) {
+  async function loadMessages(
+    conversation
+  ) {
 
     if (!conversation) {
       return;
     }
 
+
     try {
 
       setLoadingMessages(true);
-      setError("");
 
-      const { data, error: messageError } =
-        await supabase
-          .from("messages")
-          .select(`
-            id,
-            conversation_id,
-            sender_id,
-            content,
-            media_url,
-            media_type,
-            is_deleted,
-            created_at
-          `)
-          .eq(
-            "conversation_id",
-            conversation.id
-          )
-          .order("created_at", {
+      setError("");
+      setSuccess("");
+
+
+      // ------------------------------------------------------
+      // Load messages.
+      // ------------------------------------------------------
+
+      const {
+        data,
+        error: messageError,
+      } = await supabase
+        .from(
+          "messages"
+        )
+        .select(`
+          id,
+          conversation_id,
+          sender_id,
+          content,
+          media_url,
+          media_type,
+          is_deleted,
+          created_at
+        `)
+        .eq(
+          "conversation_id",
+          conversation.id
+        )
+        .order(
+          "created_at",
+          {
             ascending: true,
-          });
+          }
+        );
+
 
       if (messageError) {
         throw messageError;
       }
 
 
-      // ------------------------------------------------------
-      // Do not display soft-deleted messages as normal text.
-      // ------------------------------------------------------
-
-      setMessages(data || []);
+      setMessages(
+        data || []
+      );
 
 
       // ------------------------------------------------------
-      // Mark the conversation as read.
+      // Mark conversation as read.
       // ------------------------------------------------------
 
-      await supabase
-        .from("conversation_members")
+      const {
+        error: readError,
+      } = await supabase
+        .from(
+          "conversation_members"
+        )
         .update({
-          last_read_at: new Date().toISOString(),
+          last_read_at:
+            new Date().toISOString(),
         })
-        .eq("conversation_id", conversation.id)
-        .eq("user_id", user.id);
+        .eq(
+          "conversation_id",
+          conversation.id
+        )
+        .eq(
+          "user_id",
+          user.id
+        );
+
+
+      if (readError) {
+
+        console.warn(
+          "Unable to update read status:",
+          readError
+        );
+
+      }
+
 
     } catch (err) {
 
@@ -357,14 +902,17 @@ export default function MessagesPage() {
         err
       );
 
+
       setError(
-        err.message ||
+        err?.message ||
         "Unable to load messages."
       );
 
     } finally {
 
-      setLoadingMessages(false);
+      setLoadingMessages(
+        false
+      );
     }
   }
 
@@ -373,14 +921,31 @@ export default function MessagesPage() {
   // SELECT CONVERSATION
   // ==========================================================
 
-  async function selectConversation(conversation) {
+  async function selectConversation(
+    conversation
+  ) {
 
-    setActiveConversation(conversation);
+    setActiveConversation(
+      conversation
+    );
 
-    // Clear any previous request notice.
     setRequestUser(null);
 
-    await loadMessages(conversation);
+    setError("");
+
+    setSuccess("");
+
+    setMessages([]);
+
+
+    await loadMessages(
+      conversation
+    );
+
+
+    await loadActiveSession(
+      conversation.otherUser?.id
+    );
   }
 
 
@@ -388,11 +953,13 @@ export default function MessagesPage() {
   // SEARCH USERS
   // ==========================================================
 
-  async function searchUsers(value) {
+  async function searchUsers(
+    value
+  ) {
 
     setSearchText(value);
 
-    // Clear results when search is empty.
+
     if (!value.trim()) {
 
       setSearchResults([]);
@@ -400,39 +967,64 @@ export default function MessagesPage() {
       return;
     }
 
+
+    if (!user?.id) {
+      return;
+    }
+
+
     try {
 
       setSearching(true);
+
       setError("");
+
 
       const searchTerm =
         value.trim();
 
 
-      const { data, error: searchError } =
-        await supabase
-          .from("profiles")
-          .select(`
-            id,
-            full_name,
-            username,
-            avatar_url,
-            role,
-            school_id
-          `)
-          .neq("id", user.id)
-          .eq("is_active", true)
-          .neq("role", "super_admin")
-          .or(
-            `full_name.ilike.%${searchTerm}%,username.ilike.%${searchTerm}%`
-          )
-          .limit(10);
+      const {
+        data,
+        error: searchError,
+      } = await supabase
+        .from(
+          "profiles"
+        )
+        .select(`
+          id,
+          full_name,
+          username,
+          avatar_url,
+          role,
+          school_id
+        `)
+        .neq(
+          "id",
+          user.id
+        )
+        .eq(
+          "is_active",
+          true
+        )
+        .neq(
+          "role",
+          "super_admin"
+        )
+        .or(
+          `full_name.ilike.%${searchTerm}%,username.ilike.%${searchTerm}%`
+        )
+        .limit(10);
+
 
       if (searchError) {
         throw searchError;
       }
 
-      setSearchResults(data || []);
+
+      setSearchResults(
+        data || []
+      );
 
     } catch (err) {
 
@@ -441,8 +1033,9 @@ export default function MessagesPage() {
         err
       );
 
+
       setError(
-        err.message ||
+        err?.message ||
         "Unable to search users."
       );
 
@@ -457,17 +1050,138 @@ export default function MessagesPage() {
   // START PRIVATE CONVERSATION
   // ==========================================================
 
-  async function startConversation(selectedUser) {
+  async function startConversation(
+    selectedUser
+  ) {
+
+    if (!selectedUser?.id) {
+      return;
+    }
+
+
+    if (!user?.id) {
+      return;
+    }
+
 
     try {
 
       setError("");
+
+      setSuccess("");
+
       setRequestUser(null);
 
+
       // ------------------------------------------------------
-      // Call the PostgreSQL function we created earlier.
-      //
-      // The function decides whether messaging is allowed.
+      // Super Admin is intentionally separated.
+      // ------------------------------------------------------
+
+      if (
+        selectedUser.role ===
+        "super_admin"
+      ) {
+
+        setError(
+          "Super Admin messaging will be implemented separately."
+        );
+
+        return;
+      }
+
+
+      // ------------------------------------------------------
+      // Check whether this relationship requires an
+      // accepted temporary messaging session.
+      // ------------------------------------------------------
+
+      const needsRequest =
+        requiresMessagingRequest(
+          selectedUser
+        );
+
+
+      if (needsRequest) {
+
+        await loadActiveSession(
+          selectedUser.id
+        );
+
+
+        // ----------------------------------------------------
+        // Check for active session.
+        // ----------------------------------------------------
+
+        const {
+          data: existingSession,
+          error: sessionError,
+        } = await supabase
+          .from(
+            "messaging_sessions"
+          )
+          .select(`
+            id,
+            requester_id,
+            receiver_id,
+            request_id,
+            conversation_id,
+            started_at,
+            expires_at,
+            duration_hours,
+            is_active,
+            created_at
+          `)
+          .or(
+            `and(requester_id.eq.${user.id},receiver_id.eq.${selectedUser.id}),and(requester_id.eq.${selectedUser.id},receiver_id.eq.${user.id})`
+          )
+          .eq(
+            "is_active",
+            true
+          )
+          .gt(
+            "expires_at",
+            new Date().toISOString()
+          )
+          .order(
+            "expires_at",
+            {
+              ascending: false,
+            }
+          )
+          .limit(1)
+          .maybeSingle();
+
+
+        if (sessionError) {
+          throw sessionError;
+        }
+
+
+        if (!existingSession) {
+
+          // --------------------------------------------------
+          // There is no active session.
+          //
+          // Show request modal instead of opening an old
+          // conversation and allowing the user to type.
+          // --------------------------------------------------
+
+          setRequestUser(
+            selectedUser
+          );
+
+          return;
+        }
+
+
+        setActiveSession(
+          existingSession
+        );
+      }
+
+
+      // ------------------------------------------------------
+      // Ask database to create/retrieve private conversation.
       // ------------------------------------------------------
 
       const {
@@ -476,55 +1190,67 @@ export default function MessagesPage() {
       } = await supabase.rpc(
         "create_private_conversation",
         {
-          p_receiver_id: selectedUser.id,
+          p_receiver_id:
+            selectedUser.id,
         }
       );
 
 
-      // ------------------------------------------------------
-      // If the database rejects the conversation because an
-      // accepted request is required, show the request UI.
-      // ------------------------------------------------------
-
       if (conversationError) {
 
         if (
-          conversationError.message?.includes(
-            "accepted request is required"
-          )
+          conversationError.message
+            ?.toLowerCase()
+            .includes(
+              "accepted request is required"
+            )
         ) {
 
-          setRequestUser(selectedUser);
+          setRequestUser(
+            selectedUser
+          );
 
           return;
         }
+
 
         throw conversationError;
       }
 
 
       // ------------------------------------------------------
-      // Find the newly opened conversation in our list.
+      // Refresh conversation list.
       // ------------------------------------------------------
 
       await loadConversations();
 
 
-      const { data: conversation, error: fetchError } =
-        await supabase
-          .from("conversations")
-          .select(`
-            id,
-            participant_one_id,
-            participant_two_id,
-            type,
-            name,
-            description,
-            avatar_url,
-            updated_at
-          `)
-          .eq("id", conversationId)
-          .single();
+      // ------------------------------------------------------
+      // Load conversation.
+      // ------------------------------------------------------
+
+      const {
+        data: conversation,
+        error: fetchError,
+      } = await supabase
+        .from(
+          "conversations"
+        )
+        .select(`
+          id,
+          participant_one_id,
+          participant_two_id,
+          type,
+          name,
+          description,
+          avatar_url,
+          updated_at
+        `)
+        .eq(
+          "id",
+          conversationId
+        )
+        .single();
 
 
       if (fetchError) {
@@ -532,13 +1258,10 @@ export default function MessagesPage() {
       }
 
 
-      // ------------------------------------------------------
-      // Attach the selected user's profile.
-      // ------------------------------------------------------
-
       const completeConversation = {
         ...conversation,
-        otherUser: selectedUser,
+        otherUser:
+          selectedUser,
       };
 
 
@@ -546,8 +1269,14 @@ export default function MessagesPage() {
         completeConversation
       );
 
+
       await loadMessages(
         completeConversation
+      );
+
+
+      await loadActiveSession(
+        selectedUser.id
       );
 
 
@@ -556,9 +1285,14 @@ export default function MessagesPage() {
       // ------------------------------------------------------
 
       setSearchText("");
+
       setSearchResults([]);
 
-      // Remove ?user= from the URL.
+
+      // ------------------------------------------------------
+      // Remove ?user= from URL.
+      // ------------------------------------------------------
+
       setSearchParams({});
 
     } catch (err) {
@@ -568,8 +1302,9 @@ export default function MessagesPage() {
         err
       );
 
+
       setError(
-        err.message ||
+        err?.message ||
         "Unable to start conversation."
       );
     }
@@ -586,42 +1321,32 @@ export default function MessagesPage() {
       return;
     }
 
+
+    if (!user?.id) {
+      return;
+    }
+
+
     try {
 
       setSendingRequest(true);
+
       setError("");
 
-      // ------------------------------------------------------
-      // Check whether a pending request already exists.
-      // ------------------------------------------------------
-
-      const {
-        data: existingRequest,
-        error: existingError,
-      } = await supabase
-        .from("requests")
-        .select("id")
-        .eq("sender_id", user.id)
-        .eq("receiver_id", requestUser.id)
-        .eq("status", "pending")
-        .limit(1);
-
-      if (existingError) {
-        throw existingError;
-      }
+      setSuccess("");
 
 
       // ------------------------------------------------------
-      // Don't create duplicate requests.
+      // Super Admin protection.
       // ------------------------------------------------------
 
       if (
-        existingRequest &&
-        existingRequest.length > 0
+        requestUser.role ===
+        "super_admin"
       ) {
 
         setError(
-          "You already have a pending request with this user."
+          "Super Admin messaging will be implemented separately."
         );
 
         return;
@@ -629,20 +1354,128 @@ export default function MessagesPage() {
 
 
       // ------------------------------------------------------
-      // Create the message request.
+      // Check active session.
       // ------------------------------------------------------
 
-      const { error: requestError } =
-        await supabase
-          .from("requests")
-          .insert({
-            sender_id: user.id,
-            receiver_id: requestUser.id,
-            type: "message",
-            status: "pending",
-            initial_message:
-              requestMessage.trim() || null,
-          });
+      const {
+        data: activeSessions,
+        error: sessionError,
+      } = await supabase
+        .from(
+          "messaging_sessions"
+        )
+        .select("id")
+        .or(
+          `and(requester_id.eq.${user.id},receiver_id.eq.${requestUser.id}),and(requester_id.eq.${requestUser.id},receiver_id.eq.${user.id})`
+        )
+        .eq(
+          "is_active",
+          true
+        )
+        .gt(
+          "expires_at",
+          new Date().toISOString()
+        )
+        .limit(1);
+
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+
+      if (
+        activeSessions &&
+        activeSessions.length > 0
+      ) {
+
+        setError(
+          "You already have an active messaging session with this user."
+        );
+
+        return;
+      }
+
+
+      // ------------------------------------------------------
+      // Check pending MESSAGE request.
+      //
+      // Notice that type = "message" is explicitly checked.
+      // ------------------------------------------------------
+
+      const {
+        data: existingRequest,
+        error: existingError,
+      } = await supabase
+        .from(
+          "requests"
+        )
+        .select("id")
+        .eq(
+          "sender_id",
+          user.id
+        )
+        .eq(
+          "receiver_id",
+          requestUser.id
+        )
+        .eq(
+          "type",
+          "message"
+        )
+        .eq(
+          "status",
+          "pending"
+        )
+        .limit(1);
+
+
+      if (existingError) {
+        throw existingError;
+      }
+
+
+      if (
+        existingRequest &&
+        existingRequest.length > 0
+      ) {
+
+        setError(
+          "You already have a pending message request with this user."
+        );
+
+        return;
+      }
+
+
+      // ------------------------------------------------------
+      // Create message request.
+      // ------------------------------------------------------
+
+      const {
+        error: requestError,
+      } = await supabase
+        .from(
+          "requests"
+        )
+        .insert({
+          sender_id:
+            user.id,
+
+          receiver_id:
+            requestUser.id,
+
+          type:
+            "message",
+
+          status:
+            "pending",
+
+          initial_message:
+            requestMessage.trim() ||
+            null,
+        });
+
 
       if (requestError) {
         throw requestError;
@@ -650,16 +1483,17 @@ export default function MessagesPage() {
 
 
       // ------------------------------------------------------
-      // Request successfully created.
+      // Clear request form.
       // ------------------------------------------------------
 
       setRequestMessage("");
 
-      setError(
+      setRequestUser(null);
+
+
+      setSuccess(
         "Message request sent successfully."
       );
-
-      setRequestUser(null);
 
     } catch (err) {
 
@@ -668,8 +1502,9 @@ export default function MessagesPage() {
         err
       );
 
+
       setError(
-        err.message ||
+        err?.message ||
         "Unable to send message request."
       );
 
@@ -684,63 +1519,115 @@ export default function MessagesPage() {
   // SEND MESSAGE
   // ==========================================================
 
-  async function sendMessage(event) {
+  async function sendMessage(
+    event
+  ) {
 
     event.preventDefault();
 
-    // Don't send empty messages.
+
     if (!messageText.trim()) {
       return;
     }
 
-    // No active conversation.
+
     if (!activeConversation) {
       return;
     }
 
+
+    if (!user?.id) {
+      return;
+    }
+
+
+    // --------------------------------------------------------
+    // Determine whether this conversation requires a session.
+    // --------------------------------------------------------
+
+    const otherUser =
+      activeConversation.otherUser;
+
+
+    const needsSession =
+      requiresMessagingRequest(
+        otherUser
+      );
+
+
+    // --------------------------------------------------------
+    // If a session is required, make sure it is still active.
+    // --------------------------------------------------------
+
+    if (needsSession) {
+
+      if (
+        !isSessionActive(
+          activeSession
+        )
+      ) {
+
+        setError(
+          "Your messaging session has expired. Please send a new request to continue."
+        );
+
+        return;
+      }
+    }
+
+
     try {
 
       setSending(true);
+
       setError("");
 
+      setSuccess("");
+
 
       // ------------------------------------------------------
-      // Insert the message.
+      // Insert message.
+      //
+      // RLS remains the final security check.
       // ------------------------------------------------------
 
-      const { data: newMessage, error: messageError } =
-        await supabase
-          .from("messages")
-          .insert({
-            conversation_id:
-              activeConversation.id,
+      const {
+        data: newMessage,
+        error: messageError,
+      } = await supabase
+        .from(
+          "messages"
+        )
+        .insert({
+          conversation_id:
+            activeConversation.id,
 
-            sender_id:
-              user.id,
+          sender_id:
+            user.id,
 
-            content:
-              messageText.trim(),
+          content:
+            messageText.trim(),
 
-            media_url:
-              null,
+          media_url:
+            null,
 
-            media_type:
-              null,
+          media_type:
+            null,
 
-            is_deleted:
-              false,
-          })
-          .select(`
-            id,
-            conversation_id,
-            sender_id,
-            content,
-            media_url,
-            media_type,
-            is_deleted,
-            created_at
-          `)
-          .single();
+          is_deleted:
+            false,
+        })
+        .select(`
+          id,
+          conversation_id,
+          sender_id,
+          content,
+          media_url,
+          media_type,
+          is_deleted,
+          created_at
+        `)
+        .single();
 
 
       if (messageError) {
@@ -749,24 +1636,27 @@ export default function MessagesPage() {
 
 
       // ------------------------------------------------------
-      // Add the new message immediately to the UI.
-      //
-      // This gives the user an instant response while
-      // Realtime will be added later.
+      // Immediately add message to UI.
       // ------------------------------------------------------
 
-      setMessages((previousMessages) => [
-        ...previousMessages,
-        newMessage,
-      ]);
+      setMessages(
+        (previousMessages) => [
+          ...previousMessages,
+          newMessage,
+        ]
+      );
 
 
       // ------------------------------------------------------
       // Update conversation timestamp.
       // ------------------------------------------------------
 
-      await supabase
-        .from("conversations")
+      const {
+        error: updateError,
+      } = await supabase
+        .from(
+          "conversations"
+        )
         .update({
           updated_at:
             new Date().toISOString(),
@@ -777,7 +1667,20 @@ export default function MessagesPage() {
         );
 
 
-      // Clear the input.
+      if (updateError) {
+
+        console.warn(
+          "Unable to update conversation timestamp:",
+          updateError
+        );
+
+      }
+
+
+      // ------------------------------------------------------
+      // Clear message input.
+      // ------------------------------------------------------
+
       setMessageText("");
 
     } catch (err) {
@@ -787,8 +1690,9 @@ export default function MessagesPage() {
         err
       );
 
+
       setError(
-        err.message ||
+        err?.message ||
         "Unable to send message."
       );
 
@@ -805,95 +1709,150 @@ export default function MessagesPage() {
 
   useEffect(() => {
 
-    if (!userFromUrl || !user) {
+    if (
+      !userFromUrl ||
+      !user?.id
+    ) {
       return;
     }
+
+
+    let cancelled = false;
+
 
     async function openUserFromUrl() {
 
       try {
 
-        const { data: selectedUser, error: userError } =
-          await supabase
-            .from("profiles")
-            .select(`
-              id,
-              full_name,
-              username,
-              avatar_url,
-              role,
-              school_id
-            `)
-            .eq("id", userFromUrl)
-            .single();
+        const {
+          data: selectedUser,
+          error: userError,
+        } = await supabase
+          .from(
+            "profiles"
+          )
+          .select(`
+            id,
+            full_name,
+            username,
+            avatar_url,
+            role,
+            school_id
+          `)
+          .eq(
+            "id",
+            userFromUrl
+          )
+          .eq(
+            "is_active",
+            true
+          )
+          .maybeSingle();
+
 
         if (userError) {
           throw userError;
         }
 
-        await startConversation(
-          selectedUser
-        );
+
+        if (!selectedUser) {
+
+          throw new Error(
+            "The selected user could not be found."
+          );
+        }
+
+
+        if (!cancelled) {
+
+          await startConversation(
+            selectedUser
+          );
+
+        }
 
       } catch (err) {
+
+        if (cancelled) {
+          return;
+        }
+
 
         console.error(
           "URL conversation error:",
           err
         );
 
+
         setError(
-          err.message ||
+          err?.message ||
           "Unable to open this conversation."
         );
       }
     }
 
+
     openUserFromUrl();
 
-  }, [userFromUrl, user]);
+
+    return () => {
+
+      cancelled = true;
+
+    };
+
+  }, [
+    userFromUrl,
+    user?.id,
+  ]);
 
 
   // ==========================================================
-  // FORMAT DATE
+  // AUTOMATIC SESSION REFRESH
+  // ==========================================================
+  //
+  // When the active session approaches/ reaches expiration,
+  // reload it from Supabase.
+  //
+  // This is especially useful while the user remains on the
+  // Messages page for a long period.
   // ==========================================================
 
-  function formatTime(date) {
+  useEffect(() => {
 
-    if (!date) {
-      return "";
+    if (
+      !activeConversation?.otherUser?.id
+    ) {
+      return;
     }
 
-    return new Date(date).toLocaleTimeString(
-      [],
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    );
-  }
+
+    const timer =
+      setInterval(() => {
+
+        loadActiveSession(
+          activeConversation
+            .otherUser
+            .id
+        );
+
+      }, 30000);
+
+
+    return () => {
+
+      clearInterval(timer);
+
+    };
+
+  }, [
+    activeConversation,
+    loadActiveSession,
+  ]);
 
 
   // ==========================================================
-  // ROLE LABEL
-  // ==========================================================
-
-  function roleLabel(role) {
-
-    if (!role) {
-      return "";
-    }
-
-    return role
-      .replace("_", " ")
-      .replace(/\b\w/g, (letter) =>
-        letter.toUpperCase()
-      );
-  }
-
-
-  // ==========================================================
-  // LOADING SCREEN
+  // PROFILE LOADING
   // ==========================================================
 
   if (!profile) {
@@ -912,6 +1871,40 @@ export default function MessagesPage() {
 
 
   // ==========================================================
+  // DETERMINE WHETHER CURRENT CHAT CAN SEND
+  // ==========================================================
+
+  const activeUser =
+    activeConversation?.otherUser;
+
+
+  const activeChatRequiresSession =
+    activeUser
+      ? requiresMessagingRequest(
+          activeUser
+        )
+      : false;
+
+
+  const sessionCurrentlyActive =
+    activeChatRequiresSession
+      ? isSessionActive(
+          activeSession
+        )
+      : true;
+
+
+  const canSendMessage =
+    Boolean(
+      activeConversation &&
+      (
+        !activeChatRequiresSession ||
+        sessionCurrentlyActive
+      )
+    );
+
+
+  // ==========================================================
   // USER INTERFACE
   // ==========================================================
 
@@ -920,6 +1913,7 @@ export default function MessagesPage() {
     <div className="h-[calc(100vh-64px)] bg-gray-50">
 
       <div className="h-full max-w-7xl mx-auto flex">
+
 
         {/* ==================================================
             LEFT SIDE — CONVERSATIONS
@@ -934,7 +1928,11 @@ export default function MessagesPage() {
             bg-white
             flex
             flex-col
-            ${activeConversation ? "hidden md:flex" : "flex"}
+            ${
+              activeConversation
+                ? "hidden md:flex"
+                : "flex"
+            }
           `}
         >
 
@@ -1012,6 +2010,7 @@ export default function MessagesPage() {
                     />
 
                   </div>
+
                 )}
 
 
@@ -1025,74 +2024,87 @@ export default function MessagesPage() {
                   )}
 
 
-                {searchResults.map((person) => (
+                {searchResults.map(
+                  (person) => (
 
-                  <button
-                    key={person.id}
-                    onClick={() =>
-                      startConversation(person)
-                    }
-                    className="
-                      w-full
-                      flex
-                      items-center
-                      gap-3
-                      p-3
-                      rounded-xl
-                      hover:bg-gray-100
-                      text-left
-                    "
-                  >
+                    <button
+                      key={person.id}
+                      type="button"
+                      onClick={() =>
+                        startConversation(
+                          person
+                        )
+                      }
+                      className="
+                        w-full
+                        flex
+                        items-center
+                        gap-3
+                        p-3
+                        rounded-xl
+                        hover:bg-gray-100
+                        text-left
+                      "
+                    >
 
-                    {person.avatar_url ? (
+                      {person.avatar_url ? (
 
-                      <img
-                        src={person.avatar_url}
-                        alt=""
-                        className="
-                          w-10
-                          h-10
-                          rounded-full
-                          object-cover
-                        "
-                      />
+                        <img
+                          src={
+                            person.avatar_url
+                          }
+                          alt=""
+                          className="
+                            w-10
+                            h-10
+                            rounded-full
+                            object-cover
+                          "
+                        />
 
-                    ) : (
+                      ) : (
 
-                      <div
-                        className="
-                          w-10
-                          h-10
-                          rounded-full
-                          bg-gray-200
-                          flex
-                          items-center
-                          justify-center
-                        "
-                      >
-                        <User size={20} />
+                        <div
+                          className="
+                            w-10
+                            h-10
+                            rounded-full
+                            bg-gray-200
+                            flex
+                            items-center
+                            justify-center
+                          "
+                        >
+                          <User
+                            size={20}
+                          />
+                        </div>
+
+                      )}
+
+
+                      <div>
+
+                        <p className="font-medium">
+                          {person.full_name}
+                        </p>
+
+                        <p className="text-xs text-gray-500">
+                          @
+                          {person.username ||
+                            "user"}
+                          {" · "}
+                          {roleLabel(
+                            person.role
+                          )}
+                        </p>
+
                       </div>
 
-                    )}
+                    </button>
 
-
-                    <div>
-
-                      <p className="font-medium">
-                        {person.full_name}
-                      </p>
-
-                      <p className="text-xs text-gray-500">
-                        @{person.username || "user"}
-                        {" · "}
-                        {roleLabel(person.role)}
-                      </p>
-
-                    </div>
-
-                  </button>
-
-                ))}
+                  )
+                )}
 
               </div>
 
@@ -1133,8 +2145,8 @@ export default function MessagesPage() {
                   </p>
 
                   <p className="text-sm text-gray-500 mt-1">
-                    Search for someone above to start
-                    a conversation.
+                    Search for someone above to
+                    start a conversation.
                   </p>
 
                 </div>
@@ -1142,103 +2154,111 @@ export default function MessagesPage() {
               )}
 
 
-            {conversations.map((conversation) => (
+            {conversations.map(
+              (conversation) => (
 
-              <button
-                key={conversation.id}
-                onClick={() =>
-                  selectConversation(
-                    conversation
-                  )
-                }
-                className={`
-                  w-full
-                  flex
-                  items-center
-                  gap-3
-                  p-4
-                  border-b
-                  text-left
-                  hover:bg-gray-50
-                  ${
-                    activeConversation?.id ===
-                    conversation.id
-                      ? "bg-gray-100"
-                      : ""
+                <button
+                  key={conversation.id}
+                  type="button"
+                  onClick={() =>
+                    selectConversation(
+                      conversation
+                    )
                   }
-                `}
-              >
-
-                {conversation.otherUser?.avatar_url ? (
-
-                  <img
-                    src={
-                      conversation.otherUser.avatar_url
+                  className={`
+                    w-full
+                    flex
+                    items-center
+                    gap-3
+                    p-4
+                    border-b
+                    text-left
+                    hover:bg-gray-50
+                    ${
+                      activeConversation?.id ===
+                      conversation.id
+                        ? "bg-gray-100"
+                        : ""
                     }
-                    alt=""
-                    className="
-                      w-12
-                      h-12
-                      rounded-full
-                      object-cover
-                    "
-                  />
+                  `}
+                >
 
-                ) : (
+                  {conversation.otherUser
+                    ?.avatar_url ? (
 
-                  <div
-                    className="
-                      w-12
-                      h-12
-                      rounded-full
-                      bg-gray-200
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <User />
-                  </div>
-
-                )}
-
-
-                <div className="flex-1 min-w-0">
-
-                  <div className="flex justify-between">
-
-                    <p className="font-medium truncate">
-                      {
-                        conversation.otherUser
-                          ?.full_name ||
-                        "Unknown user"
+                    <img
+                      src={
+                        conversation
+                          .otherUser
+                          .avatar_url
                       }
+                      alt=""
+                      className="
+                        w-12
+                        h-12
+                        rounded-full
+                        object-cover
+                      "
+                    />
+
+                  ) : (
+
+                    <div
+                      className="
+                        w-12
+                        h-12
+                        rounded-full
+                        bg-gray-200
+                        flex
+                        items-center
+                        justify-center
+                      "
+                    >
+                      <User />
+                    </div>
+
+                  )}
+
+
+                  <div className="flex-1 min-w-0">
+
+                    <div className="flex justify-between">
+
+                      <p className="font-medium truncate">
+                        {
+                          conversation
+                            .otherUser
+                            ?.full_name ||
+                          "Unknown user"
+                        }
+                      </p>
+
+                      <span className="text-xs text-gray-400">
+                        {formatTime(
+                          conversation.updated_at
+                        )}
+                      </span>
+
+                    </div>
+
+                    <p className="text-sm text-gray-500 truncate">
+
+                      @
+                      {
+                        conversation
+                          .otherUser
+                          ?.username ||
+                        "user"
+                      }
+
                     </p>
 
-                    <span className="text-xs text-gray-400">
-                      {formatTime(
-                        conversation.updated_at
-                      )}
-                    </span>
-
                   </div>
 
-                  <p className="text-sm text-gray-500 truncate">
+                </button>
 
-                    @
-                    {
-                      conversation.otherUser
-                        ?.username ||
-                      "user"
-                    }
-
-                  </p>
-
-                </div>
-
-              </button>
-
-            ))}
+              )
+            )}
 
           </div>
 
@@ -1288,8 +2308,8 @@ export default function MessagesPage() {
                 </h2>
 
                 <p className="text-gray-500 mt-2">
-                  Select a conversation or search for
-                  someone to start messaging.
+                  Select a conversation or search
+                  for someone to start messaging.
                 </p>
 
               </div>
@@ -1300,7 +2320,9 @@ export default function MessagesPage() {
 
             <>
 
-              {/* Chat header */}
+              {/* ==================================================
+                  CHAT HEADER
+              ================================================== */}
 
               <header
                 className="
@@ -1314,16 +2336,20 @@ export default function MessagesPage() {
               >
 
                 <button
+                  type="button"
                   className="md:hidden"
                   onClick={() =>
-                    setActiveConversation(null)
+                    setActiveConversation(
+                      null
+                    )
                   }
                 >
                   <ArrowLeft />
                 </button>
 
 
-                {activeConversation.otherUser
+                {activeConversation
+                  .otherUser
                   ?.avatar_url ? (
 
                   <img
@@ -1360,7 +2386,7 @@ export default function MessagesPage() {
                 )}
 
 
-                <div>
+                <div className="flex-1">
 
                   <p className="font-semibold">
                     {
@@ -1382,10 +2408,70 @@ export default function MessagesPage() {
 
                 </div>
 
+
+                {/* ------------------------------------------------
+                    Temporary session indicator
+                ------------------------------------------------ */}
+
+                {activeChatRequiresSession && (
+
+                  <div className="hidden sm:flex items-center gap-2">
+
+                    {sessionCurrentlyActive ? (
+
+                      <div className="flex items-center gap-1 rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600">
+
+                        <Clock size={13} />
+
+                        {getRemainingSessionTime()}
+
+                      </div>
+
+                    ) : (
+
+                      <div className="flex items-center gap-1 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-600">
+
+                        <Clock size={13} />
+
+                        Expired
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                )}
+
               </header>
 
 
-              {/* Error / information */}
+              {/* ==================================================
+                  SUCCESS MESSAGE
+              ================================================== */}
+
+              {success && (
+
+                <div
+                  className="
+                    mx-4
+                    mt-3
+                    p-3
+                    rounded-xl
+                    bg-green-50
+                    text-green-700
+                    text-sm
+                  "
+                >
+                  {success}
+                </div>
+
+              )}
+
+
+              {/* ==================================================
+                  ERROR MESSAGE
+              ================================================== */}
 
               {error && (
 
@@ -1395,8 +2481,8 @@ export default function MessagesPage() {
                     mt-3
                     p-3
                     rounded-xl
-                    bg-blue-50
-                    text-blue-700
+                    bg-red-50
+                    text-red-700
                     text-sm
                     flex
                     items-start
@@ -1418,7 +2504,57 @@ export default function MessagesPage() {
               )}
 
 
-              {/* Messages */}
+              {/* ==================================================
+                  SESSION EXPIRED NOTICE
+              ================================================== */}
+
+              {activeChatRequiresSession &&
+                !sessionCurrentlyActive && (
+
+                  <div
+                    className="
+                      mx-4
+                      mt-3
+                      rounded-xl
+                      bg-orange-50
+                      border
+                      border-orange-100
+                      p-4
+                    "
+                  >
+
+                    <div className="flex items-start gap-3">
+
+                      <Clock
+                        size={20}
+                        className="text-orange-500 mt-0.5"
+                      />
+
+                      <div>
+
+                        <p className="font-semibold text-orange-700">
+                          Messaging session expired
+                        </p>
+
+                        <p className="text-sm text-orange-600 mt-1">
+                          Your temporary messaging
+                          session has expired. Send a
+                          new request to continue this
+                          conversation.
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                )}
+
+
+              {/* ==================================================
+                  MESSAGES
+              ================================================== */}
 
               <div
                 className="
@@ -1480,148 +2616,181 @@ export default function MessagesPage() {
                   )}
 
 
-                {messages.map((message) => {
+                {messages.map(
+                  (message) => {
 
-                  const isMine =
-                    message.sender_id === user.id;
+                    const isMine =
+                      message.sender_id ===
+                      user.id;
 
-                  return (
 
-                    <div
-                      key={message.id}
-                      className={`
-                        flex
-                        ${
-                          isMine
-                            ? "justify-end"
-                            : "justify-start"
-                        }
-                      `}
-                    >
+                    return (
 
                       <div
+                        key={message.id}
                         className={`
-                          max-w-[75%]
-                          px-4
-                          py-2.5
-                          rounded-2xl
+                          flex
                           ${
                             isMine
-                              ? "bg-blue-600 text-white rounded-br-md"
-                              : "bg-gray-100 text-gray-900 rounded-bl-md"
+                              ? "justify-end"
+                              : "justify-start"
                           }
                         `}
                       >
 
-                        {message.is_deleted ? (
-
-                          <p className="italic text-sm">
-                            Message deleted
-                          </p>
-
-                        ) : (
-
-                          <p className="whitespace-pre-wrap break-words">
-                            {message.content}
-                          </p>
-
-                        )}
-
-                        <p
+                        <div
                           className={`
-                            text-[10px]
-                            mt-1
+                            max-w-[75%]
+                            px-4
+                            py-2.5
+                            rounded-2xl
                             ${
                               isMine
-                                ? "text-blue-100"
-                                : "text-gray-400"
+                                ? "bg-blue-600 text-white rounded-br-md"
+                                : "bg-gray-100 text-gray-900 rounded-bl-md"
                             }
                           `}
                         >
-                          {formatTime(
-                            message.created_at
+
+                          {message.is_deleted ? (
+
+                            <p className="italic text-sm">
+                              Message deleted
+                            </p>
+
+                          ) : (
+
+                            <p className="whitespace-pre-wrap break-words">
+                              {message.content}
+                            </p>
+
                           )}
-                        </p>
+
+
+                          <p
+                            className={`
+                              text-[10px]
+                              mt-1
+                              ${
+                                isMine
+                                  ? "text-blue-100"
+                                  : "text-gray-400"
+                              }
+                            `}
+                          >
+                            {formatTime(
+                              message.created_at
+                            )}
+                          </p>
+
+                        </div>
 
                       </div>
 
-                    </div>
-
-                  );
-
-                })}
+                    );
+                  }
+                )}
 
               </div>
 
 
-              {/* Message composer */}
+              {/* ==================================================
+                  MESSAGE COMPOSER
+              ================================================== */}
 
-              <form
-                onSubmit={sendMessage}
-                className="
-                  border-t
-                  p-3
-                  flex
-                  gap-2
-                "
-              >
+              {canSendMessage ? (
 
-                <input
-                  type="text"
-                  value={messageText}
-                  onChange={(event) =>
-                    setMessageText(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Write a message..."
+                <form
+                  onSubmit={sendMessage}
                   className="
-                    flex-1
-                    px-4
-                    py-3
-                    rounded-full
-                    bg-gray-100
-                    focus:outline-none
-                    focus:ring-2
-                    focus:ring-blue-500
-                  "
-                />
-
-                <button
-                  type="submit"
-                  disabled={
-                    sending ||
-                    !messageText.trim()
-                  }
-                  className="
-                    w-12
-                    h-12
-                    rounded-full
-                    bg-blue-600
-                    text-white
+                    border-t
+                    p-3
                     flex
-                    items-center
-                    justify-center
-                    disabled:opacity-50
+                    gap-2
                   "
                 >
 
-                  {sending ? (
+                  <input
+                    type="text"
+                    value={messageText}
+                    onChange={(event) =>
+                      setMessageText(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Write a message..."
+                    className="
+                      flex-1
+                      px-4
+                      py-3
+                      rounded-full
+                      bg-gray-100
+                      focus:outline-none
+                      focus:ring-2
+                      focus:ring-blue-500
+                    "
+                  />
 
-                    <Loader2
-                      size={20}
-                      className="animate-spin"
-                    />
 
-                  ) : (
+                  <button
+                    type="submit"
+                    disabled={
+                      sending ||
+                      !messageText.trim()
+                    }
+                    className="
+                      w-12
+                      h-12
+                      rounded-full
+                      bg-blue-600
+                      text-white
+                      flex
+                      items-center
+                      justify-center
+                      disabled:opacity-50
+                    "
+                  >
 
-                    <Send size={20} />
+                    {sending ? (
 
-                  )}
+                      <Loader2
+                        size={20}
+                        className="animate-spin"
+                      />
 
-                </button>
+                    ) : (
 
-              </form>
+                      <Send size={20} />
+
+                    )}
+
+                  </button>
+
+                </form>
+
+              ) : (
+
+                <div
+                  className="
+                    border-t
+                    bg-orange-50
+                    p-4
+                    text-center
+                  "
+                >
+
+                  <p className="text-sm font-medium text-orange-700">
+                    This messaging session has expired.
+                  </p>
+
+                  <p className="text-xs text-orange-600 mt-1">
+                    Send a new message request to
+                    continue messaging.
+                  </p>
+
+                </div>
+
+              )}
 
             </>
 
@@ -1666,14 +2835,73 @@ export default function MessagesPage() {
               Message Request
             </h2>
 
-            <p className="text-gray-600 mt-2">
+
+            <div className="mt-3 flex items-center gap-3">
+
+              {requestUser.avatar_url ? (
+
+                <img
+                  src={
+                    requestUser.avatar_url
+                  }
+                  alt=""
+                  className="
+                    w-11
+                    h-11
+                    rounded-full
+                    object-cover
+                  "
+                />
+
+              ) : (
+
+                <div
+                  className="
+                    w-11
+                    h-11
+                    rounded-full
+                    bg-gray-100
+                    flex
+                    items-center
+                    justify-center
+                  "
+                >
+                  <User size={20} />
+                </div>
+
+              )}
+
+
+              <div>
+
+                <p className="font-semibold">
+                  {requestUser.full_name}
+                </p>
+
+                <p className="text-xs text-gray-500">
+                  @
+                  {requestUser.username ||
+                    "user"}
+                  {" · "}
+                  {roleLabel(
+                    requestUser.role
+                  )}
+                </p>
+
+              </div>
+
+            </div>
+
+
+            <p className="text-gray-600 mt-4">
 
               You need an accepted request before
               messaging{" "}
 
               <strong>
                 {requestUser.full_name}
-              </strong>.
+              </strong>
+              .
 
             </p>
 
@@ -1703,15 +2931,21 @@ export default function MessagesPage() {
             <div className="flex gap-3 mt-4">
 
               <button
-                onClick={() =>
-                  setRequestUser(null)
-                }
+                type="button"
+                onClick={() => {
+
+                  setRequestUser(null);
+
+                  setRequestMessage("");
+
+                }}
                 className="
                   flex-1
                   px-4
                   py-2.5
                   rounded-xl
                   border
+                  hover:bg-gray-50
                 "
               >
                 Cancel
@@ -1719,8 +2953,13 @@ export default function MessagesPage() {
 
 
               <button
-                onClick={sendMessageRequest}
-                disabled={sendingRequest}
+                type="button"
+                onClick={
+                  sendMessageRequest
+                }
+                disabled={
+                  sendingRequest
+                }
                 className="
                   flex-1
                   px-4

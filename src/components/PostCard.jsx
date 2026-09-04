@@ -1695,7 +1695,7 @@ const PostCard = ({
                 src={post.media_url}
                 controls
                 playsInline
-                className="w-full max-h-[600px] rounded-lg object-cover bg-black"
+                className="w-full max-h-[400px] rounded-lg object-cover bg-black"
               />
 
             ) : (
@@ -1747,6 +1747,9 @@ const PostCard = ({
               <span>
                 {likeCount}
               </span>
+              <span>
+                Like
+              </span>
 
             </button>
 
@@ -1768,6 +1771,9 @@ const PostCard = ({
               <span>
                 {commentCount}
               </span>
+              <span>
+                Comment
+              </span>
 
             </button>
 
@@ -1782,7 +1788,7 @@ const PostCard = ({
 
               <Share2 size={21} />
 
-              <span className="text-sm">
+              <span >
                 Share
               </span>
 

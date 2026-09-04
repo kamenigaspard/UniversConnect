@@ -278,7 +278,22 @@ function TeacherHome() {
                     onClick={() => navigate("/create-post")}
                     className="mb-6 flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm transition hover:bg-gray-50"
                 >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-purple-600">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full 
+                    bg-[#8b2cf6]/70 backdrop-blur-md
+                        backdrop-saturate-150
+                        border border-white/20
+                        shadaw-[0_4px_12px_rgba(139,44,236,0.3)]
+                        text-2*1
+                        transition-all
+                        duration-200
+                        hover:bg-[#8b2cf6]/90
+                        hover:backdrop-blur-lg
+                        hover:shadow-[0_6px_20px_rgba(139,44,246,0.4)]
+                        hover:scale-105
+                        active:bg-[#7c22e0]/80
+                        active:scale-95
+                        active:backdrop-blur-sm 
+                        text-white">
                         <Plus size={22} />
                     </div>
                     <div>
@@ -333,10 +348,25 @@ function TeacherHome() {
                         <span className="text-[10px]">Search</span>
                     </button>
                     <button type="button" onClick={() => navigate("/create-post")} className="flex flex-col items-center justify-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full 
+                        bg-[#8b2cf6]/70 backdrop-blur-md
+                        backdrop-saturate-150
+                        border border-white/20
+                        shadaw-[0_4px_12px_rgba(139,44,236,0.3)]
+                        text-2*1
+                        transition-all
+                        duration-200
+                        hover:bg-[#8b2cf6]/90
+                        hover:backdrop-blur-lg
+                        hover:shadow-[0_6px_20px_rgba(139,44,246,0.4)]
+                        hover:scale-105
+                        active:bg-[#7c22e0]/80
+                        active:scale-95
+                        active:backdrop-blur-sm 
+                        text-white">
                             <Plus size={22} />
                         </div>
-                        <span className="mt-1 text-xs">Create</span>
+                        <span className="mt-1 text-[10px] text-gray-500">Create</span>
                     </button>
                     <button className="relative flex flex-col items-center gap-1 text-gray-500" onClick={() => navigate("/requests")}>
                         <Heart size={22} />

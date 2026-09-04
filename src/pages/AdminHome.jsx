@@ -333,7 +333,22 @@ function AdminHome() {
                         <span className="text-[10px]">Search</span>
                     </button>
                     <button type="button" onClick={() => navigate("/create-post")} className="flex flex-col items-center justify-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full 
+                        bg-[#8b2cf6]/70 backdrop-blur-md
+                        backdrop-saturate-150
+                        border border-white/20
+                        shadaw-[0_4px_12px_rgba(139,44,236,0.3)]
+                        text-2*1
+                        transition-all
+                        duration-200
+                        hover:bg-[#8b2cf6]/90
+                        hover:backdrop-blur-lg
+                        hover:shadow-[0_6px_20px_rgba(139,44,246,0.4)]
+                        hover:scale-105
+                        active:bg-[#7c22e0]/80
+                        active:scale-95
+                        active:backdrop-blur-sm 
+                        text-white">
                             <Plus size={22} />
                         </div>
                         <span className="mt-1 text-xs">Create</span>
