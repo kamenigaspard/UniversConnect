@@ -28,6 +28,7 @@ export default function Login() {
         break;    
       case "admin":
         navigate("/admin-home");
+        break;
       case "teacher":
         navigate("/teacher-home");
         break;
