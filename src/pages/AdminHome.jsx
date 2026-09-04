@@ -212,11 +212,11 @@ function AdminHome() {
                         <button className="rounded-full p-2 hover:bg-gray-100" aria-label="Search" onClick={() => navigate("/search")}>
                             <Search size={21} />
                         </button>
-                        <button className="relative rounded-full p-2 hover:bg-gray-100" aria-label="Notifications" onClick={() => navigate("/notifications-page")}>
+                        <button className="relative rounded-full p-2 hover:bg-gray-100" aria-label="Notifications" onClick={() => navigate("/notifications")}>
                             <Bell size={21} />
                             <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
                         </button>
-                        <button className="rounded-full p-2 hover:bg-gray-100" aria-label="Messages" onClick={() => navigate("/messages-page")}>
+                        <button className="rounded-full p-2 hover:bg-gray-100" aria-label="Messages" onClick={() => navigate("/messages")}>
                             <MessageCircle size={21} />
                         </button>
                     </div>

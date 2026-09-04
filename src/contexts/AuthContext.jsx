@@ -1,4 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { 
+    createContext, 
+    useContext, 
+    useEffect, 
+    useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const AuthContext = createContext(null);
@@ -94,54 +98,174 @@ export function AuthProvider({ children }) {
     };
 
     useEffect(() => {
+
         let mounted = true;
 
+        /*
+        * ========================================================
+        * LOAD EXISTING SESSION
+        * ========================================================
+        *
+        * Supabase automatically checks whether the browser has
+        * an existing authenticated session.
+        *
+        * If the user previously logged in and the session is
+        * still valid, Supabase returns it here.
+        */
         const loadInitialSession = async () => {
+
             try {
-                const { data: { session } } = await supabase.auth.getSession();
+
+                const {
+                    data: { session }
+                } = await supabase.auth.getSession();
 
                 if (!mounted) return;
 
+                /*
+                * ------------------------------------------------
+                * Existing session found.
+                * ------------------------------------------------
+                */
                 if (session?.user) {
+
                     setUser(session.user);
-                    await getProfile(session.user.id);
+
+                    /*
+                    * Load the user's database profile.
+                    */
+                    const userProfile =
+                        await getProfile(session.user.id);
+
+                    /*
+                    * If the profile doesn't exist, remove the
+                    * invalid authentication session.
+                    */
+                    if (!userProfile) {
+
+                        await supabase.auth.signOut();
+
+                        if (mounted) {
+                            setUser(null);
+                            setProfile(null);
+                        }
+
+                        return;
+                    }
+
+                    /*
+                    * If the account has been deactivated,
+                    * immediately sign the user out.
+                    */
+                    if (userProfile.is_active === false) {
+
+                        await supabase.auth.signOut();
+
+                        if (mounted) {
+                            setUser(null);
+                            setProfile(null);
+                        }
+
+                        return;
+                    }
+
                 } else {
+
+                    /*
+                    * No existing session.
+                    */
                     setUser(null);
                     setProfile(null);
                 }
+
             } catch (error) {
-                console.error("Session loading error:", error);
+
+                console.error(
+                    "Session loading error:",
+                    error
+                );
+
                 if (mounted) {
                     setUser(null);
                     setProfile(null);
                 }
+
             } finally {
-                if (mounted) setLoading(false);
+
+                if (mounted) {
+                    setLoading(false);
+                }
             }
         };
 
+
+        /*
+        * Start session restoration.
+        */
         loadInitialSession();
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+
+        /*
+        * ========================================================
+        * LISTEN FOR AUTH CHANGES
+        * ========================================================
+        */
+        const {
+            data: { subscription }
+        } = supabase.auth.onAuthStateChange(
             async (_event, session) => {
+
                 if (!mounted) return;
 
                 if (session?.user) {
+
                     setUser(session.user);
+
+                    /*
+                    * Give React/Supabase a moment to finish the
+                    * authentication event before querying the
+                    * profile.
+                    */
                     setTimeout(async () => {
-                        if (mounted) await getProfile(session.user.id);
+
+                        if (!mounted) return;
+
+                        const userProfile =
+                            await getProfile(session.user.id);
+
+                        if (
+                            userProfile &&
+                            userProfile.is_active !== false
+                        ) {
+                            setProfile(userProfile);
+                        }
+
                     }, 0);
+
                 } else {
+
+                    /*
+                    * User logged out.
+                    */
                     setUser(null);
                     setProfile(null);
                 }
             }
         );
 
+
+        /*
+        * ========================================================
+        * CLEANUP
+        * ========================================================
+        */
         return () => {
+
             mounted = false;
+
             subscription.unsubscribe();
         };
+
     }, []);
 
     const signUp = async ({
@@ -290,7 +414,8 @@ export function AuthProvider({ children }) {
         signIn,
         signOut,
         getProfile,
-        uploadProfileImage
+        uploadProfileImage,
+        setProfile
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

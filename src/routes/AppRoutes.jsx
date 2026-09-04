@@ -5,19 +5,22 @@
  *
  * This file controls navigation throughout the application.
  *
- * React Router determines which page is displayed based
- * on the current URL.
+ * Roles:
  *
- * Authentication and role-based access are handled through
- * ProtectedRoute.
+ * - student
+ * - teacher
+ * - admin
+ * - super_admin
  *
- * Available roles:
+ * Authentication is handled through AuthContext.
  *
- * student
- * teacher
- * admin
- * super_admin
+ * ProtectedRoute:
+ *     Protects authenticated application pages.
  *
+ * PublicAuthRoute:
+ *     Allows logged-out users to access Login/Signup.
+ *     Automatically redirects already-authenticated users
+ *     to their correct home screen.
  * ============================================================
  */
 
@@ -28,25 +31,21 @@ import {
     Navigate
 } from "react-router-dom";
 
-
-// ============================================================
-// LAYOUTS
-// ============================================================
-
-import PublicLayout from "../layouts/PublicLayout";
-import AppLayout from "../layouts/AppLayout";
-
-
-// ============================================================
-// ROUTE PROTECTION
-// ============================================================
+/*
+ * ============================================================
+ * ROUTE PROTECTION
+ * ============================================================
+ */
 
 import ProtectedRoute from "./ProtectedRoute";
+import PublicAuthRoute from "./PublicAuthRoute";
 
 
-// ============================================================
-// PUBLIC PAGES
-// ============================================================
+/*
+ * ============================================================
+ * PUBLIC PAGES
+ * ============================================================
+ */
 
 import LandingPage from "../pages/LandingPage";
 
@@ -58,40 +57,26 @@ import ForgotPasswordPage
     from "../pages/auth/ForgotPasswordPage";
 
 
-// ============================================================
-// APPLICATION HOME PAGES
-// ============================================================
+/*
+ * ============================================================
+ * HOME PAGES
+ * ============================================================
+ */
 
 import StudentsHome from "../pages/StudentsHome";
+
+import TeacherHome from "../pages/TeacherHome";
 
 import AdminHome from "../pages/AdminHome";
 
 import SuperAdminHome from "../pages/SuperAdminHome";
 
 
-// ============================================================
-// TEACHER HOME
-// ============================================================
-//
-// IMPORTANT:
-//
-// We now separate teacher and administrator navigation.
-//
-// Teacher:
-//     /teacher-home
-//
-// Administrator:
-//     /admin-home
-//
-// If TeacherHome.jsx does not exist yet, create it next.
-// ============================================================
-
-import TeacherHome from "../pages/TeacherHome";
-
-
-// ============================================================
-// APPLICATION PAGES
-// ============================================================
+/*
+ * ============================================================
+ * APPLICATION PAGES
+ * ============================================================
+ */
 
 import CreatePost from "../pages/CreatePost";
 
@@ -105,10 +90,13 @@ import ProfilePage from "../pages/ProfilePage";
 
 import SettingsPage from "../pages/SettingsPage";
 
+import SearchPage from "../pages/SearchPage";
 
-// ============================================================
-// APP ROUTES COMPONENT
-// ============================================================
+/*
+ * ============================================================
+ * APP ROUTES
+ * ============================================================
+ */
 
 function AppRoutes() {
 
@@ -118,9 +106,8 @@ function AppRoutes() {
 
             <Routes>
 
-
                 {/* =================================================
-                    PUBLIC ROUTES
+                    PUBLIC LANDING PAGE
                 ================================================= */}
 
                 <Route
@@ -133,7 +120,6 @@ function AppRoutes() {
                     }
                 />
 
-
                 <Route
                     path="/landing-page"
                     element={
@@ -142,21 +128,59 @@ function AppRoutes() {
                 />
 
 
+                {/* =================================================
+                    LOGIN
+                =================================================
+                
+                Logged-out users:
+                    → Login page
+
+                Already authenticated users:
+                    → Correct role home
+                ================================================= */}
+
                 <Route
                     path="/login"
                     element={
-                        <Login />
+
+                        <PublicAuthRoute>
+
+                            <Login />
+
+                        </PublicAuthRoute>
+
                     }
                 />
 
+
+                {/* =================================================
+                    SIGNUP
+                =================================================
+                
+                Logged-out users:
+                    → Signup page
+
+                Already authenticated users:
+                    → Correct role home
+                ================================================= */}
 
                 <Route
                     path="/signup"
                     element={
-                        <Signup />
+
+                        <PublicAuthRoute>
+
+                            <Signup />
+
+                        </PublicAuthRoute>
+
                     }
                 />
 
+
+                {/* =================================================
+                    FORGOT PASSWORD
+                ================================================= */}
 
                 <Route
                     path="/forgot-password"
@@ -168,10 +192,7 @@ function AppRoutes() {
 
                 {/* =================================================
                     STUDENT HOME
-                =================================================
-                
-                Only authenticated students can access this page.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/student-home"
@@ -193,10 +214,7 @@ function AppRoutes() {
 
                 {/* =================================================
                     TEACHER HOME
-                =================================================
-                
-                Only teachers can access this page.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/teacher-home"
@@ -218,10 +236,7 @@ function AppRoutes() {
 
                 {/* =================================================
                     ADMIN HOME
-                =================================================
-                
-                Only administrators can access this page.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/admin-home"
@@ -243,10 +258,7 @@ function AppRoutes() {
 
                 {/* =================================================
                     SUPER ADMIN HOME
-                =================================================
-                
-                Only Super Admins can access this page.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/super-admin-home"
@@ -268,15 +280,7 @@ function AppRoutes() {
 
                 {/* =================================================
                     CREATE POST
-                =================================================
-                
-                Any authenticated user can create a post.
-                
-                Student
-                Teacher
-                Admin
-                Super Admin
-                */}
+                ================================================= */}
 
                 <Route
                     path="/create-post"
@@ -293,32 +297,46 @@ function AppRoutes() {
 
 
                 {/* =================================================
-                    MESSAGES
-                =================================================
-                
-                Any authenticated user can access messaging.
-                */}
+                    SEARCH
+                ================================================= */}
+
 
                 <Route
-                    path="/messages"
+                    path="/search"
                     element={
 
                         <ProtectedRoute>
 
-                            <MessagesPage />
+                            <SearchPage />
 
                         </ProtectedRoute>
 
                     }
                 />
 
+                {/* =================================================
+                    MESSAGES
+                ================================================= */}
+            <Route
+                    path="/messages"
+                    element={
+                        <ProtectedRoute
+                        allowedRoles={[
+                            "student",
+                            "teacher",
+                            "admin",
+                            "super_admin",
+                        ]}
+                        >
+                        <MessagesPage />
+                        </ProtectedRoute>
+                    }
+            />
+
 
                 {/* =================================================
                     NOTIFICATIONS
-                =================================================
-                
-                Any authenticated user can access notifications.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/notifications"
@@ -336,13 +354,7 @@ function AppRoutes() {
 
                 {/* =================================================
                     REQUESTS
-                =================================================
-                
-                Any authenticated user can access requests.
-                
-                The actual request permissions will be controlled
-                by the database/RLS and application logic.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/requests"
@@ -360,39 +372,26 @@ function AppRoutes() {
 
                 {/* =================================================
                     PROFILE
-                =================================================
-                
-                Every authenticated user has a profile.
-                
-                This page will eventually allow users to:
-                
-                - Change profile photo
-                - Change bio
-                - Edit username
-                - View posts
-                - View profile information
                 ================================================= */}
-
-                <Route
-                    path="/profile"
-                    element={
-
-                        <ProtectedRoute>
-
+                    <Route
+                        path="/profile"
+                        element={
+                            <ProtectedRoute
+                                allowedRoles={[
+                                    "student",
+                                    "teacher",
+                                    "admin",
+                                    "super_admin",
+                            ]}
+                            >
                             <ProfilePage />
-
-                        </ProtectedRoute>
-
+                            </ProtectedRoute>
                     }
-                />
-
+                    />
 
                 {/* =================================================
                     SETTINGS
-                =================================================
-                
-                Any authenticated user can access settings.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/settings"
@@ -410,17 +409,13 @@ function AppRoutes() {
 
                 {/* =================================================
                     UNAUTHORIZED
-                =================================================
-                
-                Displayed when a logged-in user attempts to access
-                a page that their role is not allowed to access.
-                */}
+                ================================================= */}
 
                 <Route
                     path="/unauthorized"
                     element={
 
-                        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+                        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
 
                             <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
 
@@ -428,18 +423,13 @@ function AppRoutes() {
                                     Access Denied
                                 </h1>
 
-
                                 <p className="mt-3 text-gray-600">
-                                    You do not have permission to
-                                    access this page.
+                                    You do not have permission to access this page.
                                 </p>
-
 
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        window.history.back();
-                                    }}
+                                    onClick={() => window.history.back()}
                                     className="mt-6 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
                                 >
                                     Go Back
@@ -455,13 +445,7 @@ function AppRoutes() {
 
                 {/* =================================================
                     UNKNOWN ROUTES
-                =================================================
-                
-                Any URL that doesn't exist is redirected to
-                the landing page.
-                
-                We intentionally have ONLY ONE wildcard route.
-                */}
+                ================================================= */}
 
                 <Route
                     path="*"
@@ -473,10 +457,10 @@ function AppRoutes() {
                     }
                 />
 
-
             </Routes>
 
         </BrowserRouter>
+
     );
 }
 

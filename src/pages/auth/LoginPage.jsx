@@ -25,10 +25,11 @@ export default function Login() {
     switch (role) {
       case "student":
         navigate("/student-home");
-        break;
-      case "teacher":
+        break;    
       case "admin":
         navigate("/admin-home");
+      case "teacher":
+        navigate("/teacher-home");
         break;
       case "super_admin":
         navigate("/super-admin-home");

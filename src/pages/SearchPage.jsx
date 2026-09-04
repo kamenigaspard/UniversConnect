@@ -1,21 +1,6 @@
-import { ArrowLeftCircle } from "lucide-react";
-/**
- * Temporary Settings Page.
- *
- * We will eventually add:
- *
- * - Edit profile
- * - Privacy
- * - Notifications
- * - Password
- * - Blocked users
- * - Security
- * -Language (fr & En)
- * -theme (light & dark)
- * - Logout
- */
+import React from 'react'
 
-function SettingsPage() {
+function SearchPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       
@@ -33,19 +18,18 @@ function SettingsPage() {
             >
 
               <ArrowLeftCircle />
-
-            </button>
+</button>
 
       <h1 className="text-2xl font-bold text-slate-900">
-        Settings
+        Search
       </h1>
 
       <p className="mt-2 text-slate-500">
-        Application settings will appear here.
+        Application search will appear here.
       </p>
 
-    </div>
-  );
+    </div> 
+  )
 }
 
-export default SettingsPage;
+export default SearchPage

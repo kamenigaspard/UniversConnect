@@ -1773,29 +1773,21 @@ const StudentHome = () => {
             <Plus size={23} />
 
           </button>
+                    <button className="relative flex flex-col items-center gap-1 text-gray-500" 
+                    onClick={() => 
+                    navigate("/requests")
+                    }>
+                        
+                        
+                        <Heart size={22} />
 
+                        <span className="text-[10px]">
 
-          <button
-            type="button"
-            onClick={() =>
-              navigate(
-                "/messages"
-              )
-            }
-            className="flex flex-col items-center gap-1 rounded-lg px-4 py-1.5 text-gray-500 hover:text-gray-900"
-          >
+                          Requests
+                          
+                          </span>
 
-            <MessageCircle
-              size={21}
-            />
-
-            <span className="text-[11px]">
-
-              Messages
-
-            </span>
-
-          </button>
+                    </button>
 
 
           <button

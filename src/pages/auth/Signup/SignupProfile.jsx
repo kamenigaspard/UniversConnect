@@ -50,6 +50,8 @@ const SignupProfile = ({ signupData, updateSignupData, previousStep }) => {
         navigate("/student-home");
         break;
       case "teacher":
+        navigate("/teacher-home");
+        break;
       case "admin":
         navigate("/admin-home");
         break;
@@ -94,9 +96,7 @@ const SignupProfile = ({ signupData, updateSignupData, previousStep }) => {
       }
 
       setSuccess("Account created successfully. Redirecting to login...");
-      setTimeout(() => {
-        navigate("/login");
-      }, 1500);
+
     } catch (err) {
       console.error("Signup error:", err);
       setError(err.message || "Something went wrong while creating your account.");
