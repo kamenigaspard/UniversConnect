@@ -100,6 +100,14 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         let mounted = true;
 
+        // Safety timeout: Guarantee loading becomes false within 3 seconds on mobile browsers
+        const timeoutId = setTimeout(() => {
+            if (mounted) {
+                console.warn("Mobile auth restoration timed out - forcing render.");
+                setLoading(false);
+            }
+        }, 3000);
+
         const loadInitialSession = async () => {
             try {
                 const {
@@ -135,6 +143,7 @@ export function AuthProvider({ children }) {
             } finally {
                 if (mounted) {
                     setLoading(false);
+                    clearTimeout(timeoutId);
                 }
             }
         };
@@ -168,6 +177,7 @@ export function AuthProvider({ children }) {
 
         return () => {
             mounted = false;
+            clearTimeout(timeoutId);
             subscription.unsubscribe();
         };
     }, []);
