@@ -79,6 +79,7 @@ export async function getMessagingProfile(userId) {
       is_active
     `)
     .eq("id", userId)
+    .eq("is_active", true)
     .maybeSingle();
 
   throwIfError(
@@ -1017,6 +1018,68 @@ export async function createPrivateConversation({
 }
 
 /* =========================================================
+   REALTIME MESSAGE SUBSCRIPTION
+========================================================= */
+
+export function subscribeToUserMessages({
+  currentUserId,
+  onInsert,
+  onUpdate,
+  onDelete,
+  onStatusChange,
+}) {
+  if (!currentUserId) {
+    return () => {};
+  }
+
+  const channel = supabase
+    .channel(`user-messages:${currentUserId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+      },
+      (payload) => {
+        onInsert?.(payload.new, payload);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "messages",
+      },
+      (payload) => {
+        onUpdate?.(payload.new, payload);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "messages",
+      },
+      (payload) => {
+        onDelete?.(payload.old, payload);
+      }
+    )
+    .subscribe((status, error) => {
+      if (error) {
+        console.error("Realtime messaging subscription error:", error);
+      }
+      onStatusChange?.(status, error || null);
+    });
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+/* =========================================================
    GET USER CONVERSATIONS
 ========================================================= */
 
@@ -1244,85 +1307,46 @@ export async function getConversationMessages({
   conversationId,
   currentUserId,
 }) {
-  if (
-    !conversationId ||
-    !currentUserId
-  ) {
-    throw new Error(
-      "Conversation and user are required."
-    );
+  if (!conversationId || !currentUserId) {
+    throw new Error("Conversation and user are required.");
   }
 
-  const {
-    data: conversation,
-    error: conversationError,
-  } = await supabase
+  const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
     .select("id, participant_one_id, participant_two_id, type")
     .eq("id", conversationId)
     .eq("type", "direct")
     .maybeSingle();
 
-  throwIfError(
-    conversationError,
-    "Unable to verify conversation."
-  );
+  throwIfError(conversationError, "Unable to verify conversation.");
 
   if (!conversation) {
     throw new Error("Conversation could not be found.");
   }
 
   const isParticipant =
-    conversation.participant_one_id === currentUser.id ||
-    conversation.participant_two_id === currentUser.id;
+    conversation.participant_one_id === currentUserId ||
+    conversation.participant_two_id === currentUserId;
 
   if (!isParticipant) {
     throw new Error("You are not a participant in this conversation.");
   }
 
-  const actualOtherUserId =
-    conversation.participant_one_id === currentUser.id
-      ? conversation.participant_two_id
-      : conversation.participant_one_id;
-
-  if (actualOtherUserId !== targetUserId) {
-    throw new Error(
-      "The selected recipient does not belong to this conversation."
-    );
-  }
-
-  const {
-    data: membership,
-    error: membershipError,
-  } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("conversation_members")
     .select("id,is_active")
-    .eq(
-      "conversation_id",
-      conversationId
-    )
-    .eq(
-      "user_id",
-      currentUserId
-    )
+    .eq("conversation_id", conversationId)
+    .eq("user_id", currentUserId)
     .eq("is_active", true)
     .maybeSingle();
 
-  throwIfError(
-    membershipError,
-    "Unable to verify conversation access."
-  );
+  throwIfError(membershipError, "Unable to verify conversation access.");
 
   if (!membership) {
-    throw new Error(
-      "You are not a member of this conversation."
-    );
+    throw new Error("You are not a member of this conversation.");
   }
 
-  const {
-    data,
-    error,
-  } = await supabase
+  const { data, error } = await supabase
     .from("messages")
     .select(`
       id,
@@ -1334,18 +1358,10 @@ export async function getConversationMessages({
       is_deleted,
       created_at
     `)
-    .eq(
-      "conversation_id",
-      conversationId
-    )
-    .order("created_at", {
-      ascending: true,
-    });
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
 
-  throwIfError(
-    error,
-    "Unable to load messages."
-  );
+  throwIfError(error, "Unable to load messages.");
 
   return data || [];
 }

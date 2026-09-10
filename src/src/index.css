@@ -1,0 +1,63 @@
+/**
+ * Global stylesheet for the University Social application.
+ *
+ * Tailwind CSS is imported here so that we can use
+ * utility classes throughout our React components.
+ */
+
+@import "tailwindcss";
+
+/**
+ * Global application defaults.
+ */
+
+:root {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  color: #171717;
+  background: #f8fafc;
+}
+
+/**
+ * Make sizing predictable throughout the application.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+/**
+ * Remove default browser margin.
+ */
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/**
+ * Make images responsive.
+ */
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/**
+ * Make buttons and inputs inherit our application's font.
+ */
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}

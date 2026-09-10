@@ -26,6 +26,7 @@ import {
   createMessageRequest,
   sendMessage,
   markConversationAsRead,
+  subscribeToUserMessages,
 } from "../services/messaging/messagingService";
 
 import {
@@ -42,6 +43,9 @@ export default function MessagesPage() {
 
   const messagesEndRef = useRef(null);
   const urlUserHandledRef = useRef(null);
+  const activeConversationIdRef = useRef(null);
+  const currentUserIdRef = useRef(null);
+  const conversationsRef = useRef([]);
 
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
@@ -64,6 +68,7 @@ export default function MessagesPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showConversation, setShowConversation] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState("CONNECTING");
 
   const loadConversations = useCallback(async () => {
     if (!currentUser?.id) return;
@@ -147,6 +152,173 @@ export default function MessagesPage() {
     if (!currentUser?.id) return;
     loadConversations();
   }, [currentUser?.id, loadConversations]);
+
+  const mergeRealtimeMessageIntoList = useCallback((incomingMessage) => {
+    if (!incomingMessage?.id) return;
+
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex(
+        (message) => message.id === incomingMessage.id
+      );
+
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = { ...next[existingIndex], ...incomingMessage };
+        return next.sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      }
+
+      return [...prev, incomingMessage].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+    });
+  }, []);
+
+  const updateConversationFromRealtimeMessage = useCallback(
+    (incomingMessage) => {
+      if (!incomingMessage?.id || !incomingMessage?.conversation_id) return;
+
+      const isCurrentConversation =
+        activeConversationIdRef.current === incomingMessage.conversation_id;
+      const isOwnMessage =
+        incomingMessage.sender_id === currentUserIdRef.current;
+      const conversationWasKnown = conversationsRef.current.some(
+        (conversation) => conversation.id === incomingMessage.conversation_id
+      );
+
+      setConversations((prev) => {
+        if (!conversationWasKnown) {
+          return prev;
+        }
+
+        return [...prev]
+          .map((conversation) => {
+            if (conversation.id !== incomingMessage.conversation_id) {
+              return conversation;
+            }
+
+            const currentUnread = Number(conversation.unreadCount) || 0;
+            const shouldIncrementUnread =
+              !isOwnMessage && !isCurrentConversation;
+
+            return {
+              ...conversation,
+              lastMessage: incomingMessage,
+              updated_at:
+                incomingMessage.created_at || conversation.updated_at,
+              unreadCount: shouldIncrementUnread
+                ? currentUnread + 1
+                : isCurrentConversation
+                ? 0
+                : currentUnread,
+            };
+          })
+          .sort(
+            (a, b) =>
+              new Date(b.updated_at || 0).getTime() -
+              new Date(a.updated_at || 0).getTime()
+          );
+      });
+
+      if (!conversationWasKnown) {
+        loadConversations().catch((err) => {
+          console.error(
+            "Unable to refresh conversations after a realtime message:",
+            err
+          );
+        });
+      }
+    },
+    [loadConversations]
+  );
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversation?.id || null;
+    currentUserIdRef.current = currentUser?.id || null;
+    conversationsRef.current = conversations;
+  }, [activeConversation?.id, currentUser?.id, conversations]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return undefined;
+
+    let disposed = false;
+
+    const unsubscribe = subscribeToUserMessages({
+      currentUserId: currentUser.id,
+      onInsert: (incomingMessage) => {
+        if (disposed) return;
+
+        const isCurrentConversation =
+          activeConversationIdRef.current === incomingMessage?.conversation_id;
+
+        if (isCurrentConversation) {
+          mergeRealtimeMessageIntoList(incomingMessage);
+        }
+        updateConversationFromRealtimeMessage(incomingMessage);
+
+        if (isCurrentConversation && incomingMessage?.sender_id !== currentUserIdRef.current) {
+          markConversationAsRead({
+            conversationId: incomingMessage.conversation_id,
+            currentUserId: currentUserIdRef.current,
+          }).catch((err) => {
+            console.error("Unable to mark realtime message as read:", err);
+          });
+        }
+      },
+      onUpdate: (incomingMessage) => {
+        if (disposed || !incomingMessage) return;
+
+        if (activeConversationIdRef.current === incomingMessage.conversation_id) {
+          mergeRealtimeMessageIntoList(incomingMessage);
+        }
+
+        updateConversationFromRealtimeMessage(incomingMessage);
+      },
+      onDelete: (deletedMessage) => {
+        if (disposed || !deletedMessage?.id) return;
+
+        if (activeConversationIdRef.current === deletedMessage.conversation_id) {
+          setMessages((prev) =>
+            prev.filter((message) => message.id !== deletedMessage.id)
+          );
+        }
+
+        setConversations((prev) =>
+          prev.map((conversation) => {
+            if (conversation.id !== deletedMessage.conversation_id) {
+              return conversation;
+            }
+
+            if (conversation.lastMessage?.id !== deletedMessage.id) {
+              return conversation;
+            }
+
+            return {
+              ...conversation,
+              lastMessage: null,
+            };
+          })
+        );
+      },
+      onStatusChange: (status, subscriptionError) => {
+        setRealtimeStatus(status);
+
+        if (subscriptionError) {
+          console.error("Realtime status error:", subscriptionError);
+        }
+      },
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [
+    currentUser?.id,
+    mergeRealtimeMessageIntoList,
+    updateConversationFromRealtimeMessage,
+  ]);
 
   const handleSelectConversation = async (conversation) => {
     if (!conversation?.id) return;
@@ -589,6 +761,36 @@ export default function MessagesPage() {
                     {selectedUser.role.replace("_", " ")}
                   </p>
                 )}
+              </div>
+
+              <div
+                className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium sm:flex ${
+                  realtimeStatus === "SUBSCRIBED"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : realtimeStatus === "CONNECTING"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-red-200 bg-red-50 text-red-700"
+                }`}
+                title={
+                  realtimeStatus === "SUBSCRIBED"
+                    ? "Real-time messaging is connected"
+                    : "Real-time messaging is reconnecting"
+                }
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    realtimeStatus === "SUBSCRIBED"
+                      ? "bg-emerald-500"
+                      : realtimeStatus === "CONNECTING"
+                      ? "animate-pulse bg-amber-500"
+                      : "bg-red-500"
+                  }`}
+                />
+                {realtimeStatus === "SUBSCRIBED"
+                  ? "Live"
+                  : realtimeStatus === "CONNECTING"
+                  ? "Connecting"
+                  : "Reconnecting"}
               </div>
 
               {messagingState?.activeSession && (
