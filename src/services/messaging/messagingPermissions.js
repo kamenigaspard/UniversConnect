@@ -150,6 +150,7 @@ export function getMessagingRule(currentUser, targetUser) {
       relationshipType: "connection",
       reason:
         "A connection is required before messaging.",
+     
     };
   }
 

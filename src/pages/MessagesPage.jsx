@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
   Edit3,
-  Loader2,
   MessageCircle,
-  Search,
   Sparkles,
   User,
 } from "lucide-react";
@@ -36,6 +34,7 @@ import {
 } from "../services/messaging/messagingPermissions";
 
 export default function MessagesPage() {
+  const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -59,13 +58,6 @@ export default function MessagesPage() {
   const [messageText, setMessageText] = useState("");
 
   // ============================================================
-  // SEARCH
-  // ============================================================
-
-  const [searchText, setSearchText] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-
-  // ============================================================
   // USER / REQUEST STATE
   // ============================================================
 
@@ -83,7 +75,6 @@ export default function MessagesPage() {
 
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [searchingUsers, setSearchingUsers] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [sendingRequest, setSendingRequest] = useState(false);
   const [loadingUser, setLoadingUser] = useState(false);
@@ -206,43 +197,12 @@ export default function MessagesPage() {
   };
 
   // ============================================================
-  // SEARCH USERS
-  // ============================================================
-
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (!searchText.trim() || !currentUser?.id) {
-        setSearchResults([]);
-        return;
-      }
-
-      try {
-        setSearchingUsers(true);
-        const results = await searchMessagingUsers(
-          searchText,
-          currentUser.id
-        );
-        setSearchResults(results || []);
-      } catch (err) {
-        console.error("User search failed:", err);
-        setSearchResults([]);
-      } finally {
-        setSearchingUsers(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchText, currentUser?.id]);
-
-  // ============================================================
-  // SELECT USER FROM SEARCH
+  // SELECT USER (USED BY DEEP LINK)
   // ============================================================
 
   const handleSelectUser = async (targetUser) => {
     if (!targetUser?.id || !currentUser?.id) return;
 
-    setSearchText("");
-    setSearchResults([]);
     setError("");
     setNotice("");
     setConnectionNotice("");
@@ -401,7 +361,7 @@ export default function MessagesPage() {
   };
 
   // ============================================================
-  // URL DEEP LINK
+  // URL DEEP LINK (navigating from external search)
   // ============================================================
 
   useEffect(() => {
@@ -502,91 +462,36 @@ export default function MessagesPage() {
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-white text-gray-900 font-sans">
       {/* ======================================================
-          LEFT — CONVERSATIONS & SEARCH (INSTAGRAM STYLE)
+          LEFT — CONVERSATIONS
       ======================================================= */}
       <aside
         className={`flex w-full flex-col border-r border-gray-100 bg-white md:w-[350px] lg:w-[390px] ${
           showConversation ? "hidden md:flex" : "flex"
         }`}
       >
-        {/* Header */}
-        <div className="px-5 pt-5 pb-3">
-          <div className="mb-4 flex items-center justify-between">
+        {/* Top Navigation & Header */}
+        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3.5">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              title="Go back to previous screen"
+              className="rounded-full p-2 text-purple-600 transition hover:bg-purple-50 active:scale-95"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <h1 className="text-xl font-bold tracking-tight text-gray-900">
               {currentUser?.username ? `@${currentUser.username}` : "Direct"}
             </h1>
-            <button
-              title="New Message"
-              className="rounded-full p-2 text-purple-600 transition hover:bg-purple-50 active:scale-95"
-            >
-              <Edit3 size={22} />
-            </button>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative">
-            <Search
-              size={17}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-400"
-            />
-            <input
-              type="text"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              placeholder="Search people..."
-              className="w-full rounded-2xl bg-purple-50/50 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none border border-transparent transition focus:border-purple-300 focus:bg-white focus:ring-2 focus:ring-purple-100"
-            />
-          </div>
+          <button
+            title="New Message"
+            className="rounded-full p-2 text-purple-600 transition hover:bg-purple-50 active:scale-95"
+          >
+            <Edit3 size={20} />
+          </button>
         </div>
-
-        {/* Search Results Dropdown/List */}
-        {searchText.trim() && (
-          <div className="max-h-[320px] overflow-y-auto border-b border-gray-100 bg-white">
-            {searchingUsers ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="animate-spin text-purple-600" size={22} />
-              </div>
-            ) : searchResults.length === 0 ? (
-              <div className="px-5 py-6 text-center text-sm text-gray-500">
-                No users found.
-              </div>
-            ) : (
-              searchResults.map((targetUser) => (
-                <button
-                  key={targetUser.id}
-                  onClick={() => handleSelectUser(targetUser)}
-                  className="flex w-full items-center gap-3.5 px-5 py-3 text-left transition hover:bg-purple-50/60"
-                >
-                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full ring-2 ring-purple-500/20 bg-purple-100">
-                    {targetUser.avatar_url ? (
-                      <img
-                        src={targetUser.avatar_url}
-                        alt=""
-                        className="h-full w-full rounded-full object-cover"
-                      />
-                    ) : (
-                      <User size={20} className="text-purple-600" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-gray-900">
-                      {targetUser.full_name || targetUser.username}
-                    </p>
-                    {targetUser.username && (
-                      <p className="truncate text-xs text-gray-500">
-                        @{targetUser.username}
-                      </p>
-                    )}
-                  </div>
-                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-medium capitalize text-purple-700">
-                    {targetUser.role}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        )}
 
         {/* Conversations List */}
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -610,7 +515,7 @@ export default function MessagesPage() {
         }`}
       >
         {!activeConversation && !selectedUser ? (
-          /* Empty Instagram State */
+          /* Empty State */
           <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
             <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full border-2 border-purple-500 bg-purple-50 shadow-sm">
               <MessageCircle size={48} className="text-purple-600" />
