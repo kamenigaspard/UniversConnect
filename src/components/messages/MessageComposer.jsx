@@ -1,12 +1,8 @@
-import React, { useRef } from "react";
-import {
-  Send,
-  Paperclip,
-  Loader2,
-  Lock,
-} from "lucide-react";
+import React, { useRef, useEffect } from "react";
+import { Send, Paperclip, Loader2, Lock } from "lucide-react";
 
 const MAX_MESSAGE_LENGTH = 2000;
+const MAX_FILE_MB = 15;
 
 export default function MessageComposer({
   value = "",
@@ -20,51 +16,59 @@ export default function MessageComposer({
   allowAttachments = true,
 }) {
   const textareaRef = useRef(null);
+  const fileRef = useRef(null);
 
-  const handleChange = (event) => {
-    const nextValue = event.target.value;
-
-    if (nextValue.length > MAX_MESSAGE_LENGTH) {
-      return;
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 128) + "px";
     }
+  }, [value]);
 
-    onChange?.(nextValue);
+  const handleChange = (e) => {
+    const next = e.target.value || "";
+    if (next.length > MAX_MESSAGE_LENGTH) return;
+    onChange?.(next);
   };
 
-  const handleKeyDown = (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-
-      if (!disabled && !sending && value.trim()) {
-        onSend?.();
-      }
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" &&!e.shiftKey) {
+      e.preventDefault();
+      if (!disabled &&!sending && value.trim()) onSend?.();
     }
   };
 
   const handleSend = () => {
-    if (disabled || sending || !value.trim()) {
-      return;
-    }
-
+    if (disabled || sending ||!value.trim()) return;
     onSend?.();
-
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-    });
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      alert(`File too large (max ${MAX_FILE_MB}MB)`);
+      e.target.value = "";
+      return;
+    }
+    onAttach?.(file);
+    e.target.value = "";
+  };
+
+  // If disabled, show lock + disabled composer (not hide it)
   if (disabled && disabledMessage) {
     return (
       <div className="border-t border-gray-100 bg-white p-3">
-        <div className="flex items-center justify-center gap-2 rounded-2xl bg-purple-50/70 border border-purple-100 px-4 py-3 text-center">
-          <Lock
-            size={16}
-            className="shrink-0 text-purple-600"
-          />
-
-          <p className="text-xs font-medium text-purple-900">
-            {disabledMessage}
-          </p>
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+          <Lock size={14} className="shrink-0 text-amber-600" />
+          <p className="text-xs font-medium text-amber-800">{disabledMessage}</p>
+        </div>
+        {/* keep textarea disabled so layout doesn't jump */}
+        <div className="mt-2 flex items-end gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-2 opacity-60">
+          <div className="h-10 w-10" />
+          <div className="flex-1 py-2 text-sm text-gray-400">{placeholder}</div>
+          <div className="h-10 w-10 rounded-full bg-gray-200" />
         </div>
       </div>
     );
@@ -73,74 +77,37 @@ export default function MessageComposer({
   return (
     <div className="border-t border-gray-100 bg-white p-3">
       <div className="mx-auto max-w-4xl">
-        <div className="flex items-end gap-2 rounded-2xl border border-purple-100 bg-purple-50/40 p-2 transition-all focus-within:border-purple-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-100/50 shadow-xs">
-          {/* Attachment */}
+        <div className={`flex items-end gap-2 rounded-2xl border bg-white p-2 shadow-sm transition ${disabled? "border-gray-100 bg-gray-50" : "border-gray-200 focus-within:border-purple-300 focus-within:ring-2 focus-within:ring-purple-100"}`}>
           {allowAttachments && (
             <>
-              <input
-                id="message-attachment"
-                type="file"
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={onAttach}
-              />
-
-              <label
-                htmlFor="message-attachment"
-                className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-gray-400 transition hover:bg-purple-100/60 hover:text-purple-600"
-                title="Attach media"
-              >
-                <Paperclip size={19} />
-              </label>
+              <input ref={fileRef} type="file" accept="image/*,video/*,.pdf" className="hidden" onChange={handleFileChange} disabled={disabled || sending} />
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={disabled || sending} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-purple-600 disabled:opacity-40">
+                <Paperclip size={18} />
+              </button>
             </>
           )}
 
-          {/* Text input */}
-          <div className="min-w-0 flex-1">
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              disabled={disabled || sending}
-              rows={1}
-              placeholder={placeholder}
-              className="max-h-32 min-h-10 w-full resize-none border-0 bg-transparent px-2 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 disabled:cursor-not-allowed"
-            />
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            disabled={disabled || sending}
+            rows={1}
+            placeholder={placeholder}
+            className="max-h-32 min-h-9 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-[14px] text-gray-900 outline-none placeholder:text-gray-400"
+          />
 
-            {value.length > 0 && (
-              <div className="px-2 pb-1 text-right text-[10px] text-gray-400">
-                {value.length}/{MAX_MESSAGE_LENGTH}
-              </div>
-            )}
-          </div>
-
-          {/* Send */}
           <button
             type="button"
             onClick={handleSend}
-            disabled={
-              disabled ||
-              sending ||
-              !value.trim()
-            }
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white shadow-xs transition hover:bg-purple-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-purple-300 disabled:opacity-50 disabled:scale-100"
-            title="Send message"
+            disabled={disabled || sending ||!value.trim()}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white hover:bg-purple-700 active:scale-95 disabled:bg-gray-300"
           >
-            {sending ? (
-              <Loader2
-                size={18}
-                className="animate-spin"
-              />
-            ) : (
-              <Send size={18} />
-            )}
+            {sending? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
         </div>
-
-        <p className="mt-1.5 px-2 text-[10px] text-gray-400">
-          Press Enter to send · Shift + Enter for a new line
-        </p>
+        {value.length > 0 && <div className="mt-1 text-right text-[10px] text-gray-400">{value.length}/{MAX_MESSAGE_LENGTH}</div>}
       </div>
     </div>
   );

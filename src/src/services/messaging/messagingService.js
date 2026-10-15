@@ -1380,182 +1380,30 @@ export async function sendMessage({
 }) {
   requireUser(currentUser);
 
-  if (!conversationId) {
-    throw new Error(
-      "Conversation ID is required."
-    );
+  if (!conversationId) throw new Error("Conversation ID is required.");
+  if (!targetUserId) throw new Error("Recipient is required.");
+
+  const cleanContent = content?.trim() || null;
+
+  if (!cleanContent && !mediaUrl) {
+    throw new Error("A message must contain text or media.");
   }
 
-  if (!targetUserId) {
-    throw new Error(
-      "Recipient is required."
-    );
+  if (cleanContent && cleanContent.length > 2000) {
+    throw new Error("Message cannot exceed 2000 characters.");
   }
 
-  const cleanContent =
-    content?.trim() || null;
+  const { data, error } = await supabase.rpc("send_private_message", {
+    p_conversation_id: conversationId,
+    p_receiver_id: targetUserId,
+    p_content: cleanContent,
+    p_media_url: mediaUrl,
+    p_media_type: mediaType,
+  });
 
-  if (
-    !cleanContent &&
-    !mediaUrl
-  ) {
-    throw new Error(
-      "A message must contain text or media."
-    );
-  }
+  throwIfError(error, "Unable to send message.");
 
-  if (
-    cleanContent &&
-    cleanContent.length > 2000
-  ) {
-    throw new Error(
-      "Message cannot exceed 2000 characters."
-    );
-  }
-
-  const targetUser =
-    await getMessagingProfile(
-      targetUserId
-    );
-
-  if (!targetUser) {
-    throw new Error(
-      "Recipient could not be found."
-    );
-  }
-
-  const rule =
-    getMessagingRule(
-      currentUser,
-      targetUser
-    );
-
-  if (!rule?.allowed) {
-    throw new Error(
-      rule?.reason ||
-        "You cannot message this user."
-    );
-  }
-
-  /* Connection required */
-
-  if (rule.requiresConnection) {
-    const connection =
-      await areUsersConnected(
-        currentUser.id,
-        targetUser.id
-      );
-
-    if (!connection) {
-      throw new Error(
-        "You must be connected before sending messages."
-      );
-    }
-  }
-
-  /* Temporary message session */
-
-  if (rule.requiresMessageRequest) {
-    const activeSession =
-      await hasActiveMessagingSession(
-        currentUser.id,
-        targetUser.id
-      );
-
-    if (!activeSession) {
-      throw new Error(
-        "Your messaging session has expired. Send a new message request."
-      );
-    }
-  }
-
-  const {
-    data: membership,
-    error: membershipError,
-  } = await supabase
-    .from("conversation_members")
-    .select("id")
-    .eq(
-      "conversation_id",
-      conversationId
-    )
-    .eq(
-      "user_id",
-      currentUser.id
-    )
-    .eq("is_active", true)
-    .maybeSingle();
-
-  throwIfError(
-    membershipError,
-    "Unable to verify conversation membership."
-  );
-
-  if (!membership) {
-    throw new Error(
-      "You are not a member of this conversation."
-    );
-  }
-
-  const {
-    data,
-    error,
-  } = await supabase
-    .from("messages")
-    .insert({
-      conversation_id:
-        conversationId,
-
-      sender_id:
-        currentUser.id,
-
-      content:
-        cleanContent,
-
-      media_url:
-        mediaUrl,
-
-      media_type:
-        mediaType,
-
-      is_deleted: false,
-    })
-    .select(`
-      id,
-      conversation_id,
-      sender_id,
-      content,
-      media_url,
-      media_type,
-      is_deleted,
-      created_at
-    `)
-    .single();
-
-  throwIfError(
-    error,
-    "Unable to send message."
-  );
-
-  const {
-    error: updateError,
-  } = await supabase
-    .from("conversations")
-    .update({
-      updated_at:
-        new Date().toISOString(),
-    })
-    .eq(
-      "id",
-      conversationId
-    );
-
-  throwIfError(
-    updateError,
-    "Message was sent, but conversation activity could not be updated."
-  );
-
-  return data;
+  return Array.isArray(data) ? data[0] || null : data;
 }
 
 /* =========================================================
@@ -1566,37 +1414,15 @@ export async function markConversationAsRead({
   conversationId,
   currentUserId,
 }) {
-  if (
-    !conversationId ||
-    !currentUserId
-  ) {
-    return false;
-  }
+  if (!conversationId || !currentUserId) return false;
 
-  const {
-    error,
-  } = await supabase
-    .from("conversation_members")
-    .update({
-      last_read_at:
-        new Date().toISOString(),
-    })
-    .eq(
-      "conversation_id",
-      conversationId
-    )
-    .eq(
-      "user_id",
-      currentUserId
-    )
-    .eq("is_active", true);
+  const { data, error } = await supabase.rpc("mark_conversation_as_read", {
+    p_conversation_id: conversationId,
+  });
 
-  throwIfError(
-    error,
-    "Unable to mark conversation as read."
-  );
+  throwIfError(error, "Unable to mark conversation as read.");
 
-  return true;
+  return data === true;
 }
 
 /* =========================================================

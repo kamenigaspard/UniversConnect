@@ -1,193 +1,125 @@
-import React, { useEffect, useRef } from "react";
-import {
-  MessageCircle,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
+import React, { useRef, useEffect, useMemo } from "react";
+import { MessageCircle, Loader2, AlertCircle } from "lucide-react";
 
-export default function MessageList({
-  messages = [],
-  currentUserId,
-  loading = false,
-  error = null,
-}) {
+export default function MessageList({ messages = [], currentUserId, loading = false, error = null }) {
   const bottomRef = useRef(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
+  // SAFE: filter out nulls that realtime might send
+  const safeMessages = useMemo(() => {
+    if (!Array.isArray(messages)) return [];
+    return messages.filter(m => m && m.id);
   }, [messages]);
 
-  const formatMessageTime = (date) => {
-    if (!date) return "";
-
-    const messageDate = new Date(date);
-
-    if (Number.isNaN(messageDate.getTime())) {
-      return "";
+  useEffect(() => {
+    if (safeMessages.length) {
+      // use setTimeout to avoid startTime React Profiler bug
+      const t = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" }), 50);
+      return () => clearTimeout(t);
     }
+  }, [safeMessages]);
 
-    return messageDate.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatTime = (date) => {
+    if (!date) return "";
+    try {
+      const d = new Date(date);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch { return ""; }
   };
+
+  const formatDateSeparator = (date) => {
+    if (!date) return "";
+    try {
+      const d = new Date(date);
+      const now = new Date();
+      if (d.toDateString() === now.toDateString()) return "Today";
+      const yesterday = new Date(); yesterday.setDate(now.getDate() - 1);
+      if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+      return d.toLocaleDateString([], { month: "long", day: "numeric", year: d.getFullYear()!== now.getFullYear()? "numeric" : undefined });
+    } catch { return ""; }
+  };
+
+  const grouped = useMemo(() => {
+    let lastDate = null;
+    return safeMessages.map((msg) => {
+      try {
+        const dateStr = msg.created_at? new Date(msg.created_at).toDateString() : "";
+        const showSeparator = dateStr && dateStr!== lastDate;
+        lastDate = dateStr || lastDate;
+        return {...msg, showSeparator };
+      } catch {
+        return {...msg, showSeparator: false };
+      }
+    });
+  }, [safeMessages]);
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2
-            size={25}
-            className="animate-spin text-purple-600"
-          />
-
-          <p className="text-xs font-medium text-gray-500">
-            Loading messages...
-          </p>
-        </div>
+      <div className="flex flex-1 items-center justify-center py-20">
+        <Loader2 size={24} className="animate-spin text-purple-600" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-white px-6">
-        <div className="max-w-sm text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 ring-2 ring-red-500/20">
-            <AlertCircle size={22} />
-          </div>
-
-          <h3 className="text-sm font-semibold text-gray-900">
-            Unable to load messages
-          </h3>
-
-          <p className="mt-1 text-xs text-gray-500">
-            {error}
-          </p>
+      <div className="flex flex-1 items-center justify-center px-6 py-20">
+        <div className="text-center max-w-sm">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertCircle size={22} /></div>
+          <h3 className="text-sm font-semibold">Unable to load messages</h3>
+          <p className="mt-1 text-xs text-gray-500">{error}</p>
         </div>
       </div>
     );
   }
 
-  if (!messages.length) {
+  if (!safeMessages.length) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-white px-6">
-        <div className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-purple-50 text-purple-600 ring-2 ring-purple-500/20">
-            <MessageCircle size={22} />
-          </div>
-
-          <h3 className="text-sm font-bold text-gray-900">
-            No messages yet
-          </h3>
-
-          <p className="mt-1 text-xs text-gray-500">
-            Send a message to start the conversation.
-          </p>
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-20">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-purple-50 text-purple-600"><MessageCircle size={22} /></div>
+        <h3 className="text-sm font-bold">No messages yet</h3>
+        <p className="mt-1 text-xs text-gray-500">Send a message to start</p>
+        <div ref={bottomRef} />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white px-4 py-5">
-      <div className="mx-auto flex max-w-4xl flex-col gap-3">
-        {messages.map((message) => {
-          const isMine =
-            message.sender_id === currentUserId;
-
+    <div className="bg-white px-3 py-4 sm:px-4">
+      <div className="mx-auto flex max-w-4xl flex-col gap-2">
+        {grouped.map((message) => {
+          const isMine = String(message.sender_id) === String(currentUserId);
           const isDeleted = message.is_deleted;
-
           const hasMedia = Boolean(message.media_url);
 
           return (
-            <div
-              key={message.id}
-              className={`flex ${
-                isMine
-                  ? "justify-end"
-                  : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[82%] sm:max-w-[70%]`}
-              >
-                {/* Media */}
-                {hasMedia && !isDeleted && (
-                  <div
-                    className={`mb-1 overflow-hidden rounded-2xl shadow-xs border border-purple-100 ${
-                      isMine
-                        ? "rounded-br-sm"
-                        : "rounded-bl-sm"
-                    }`}
-                  >
-                    {message.media_type?.startsWith(
-                      "image/"
-                    ) ? (
-                      <img
-                        src={message.media_url}
-                        alt="Message attachment"
-                        className="max-h-80 w-full object-cover"
-                      />
-                    ) : message.media_type?.startsWith(
-                        "video/"
-                      ) ? (
-                      <video
-                        src={message.media_url}
-                        controls
-                        className="max-h-80 w-full"
-                      />
-                    ) : (
-                      <a
-                        href={message.media_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block bg-purple-50 px-4 py-3 text-sm font-medium text-purple-700 underline hover:text-purple-800"
-                      >
-                        Open attachment
-                      </a>
-                    )}
-                  </div>
-                )}
+            <React.Fragment key={message.id || Math.random()}>
+              {message.showSeparator && (
+                <div className="my-3 flex justify-center">
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-500">
+                    {formatDateSeparator(message.created_at)}
+                  </span>
+                </div>
+              )}
 
-                {/* Message bubble */}
-                {(message.content || isDeleted) && (
-                  <div
-                    className={`rounded-2xl px-4 py-2.5 shadow-xs ${
-                      isDeleted
-                        ? "bg-gray-100 border border-gray-200 italic text-gray-500"
-                        : isMine
-                        ? "rounded-br-sm bg-purple-600 text-white"
-                        : "rounded-bl-sm bg-purple-50/70 border border-purple-100/80 text-gray-900"
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {isDeleted
-                        ? "This message was deleted."
-                        : message.content}
-                    </p>
-                  </div>
-                )}
-
-                {/* Time */}
-                <div
-                  className={`mt-1 text-[10px] font-medium text-gray-400 ${
-                    isMine
-                      ? "text-right"
-                      : "text-left"
-                  }`}
-                >
-                  {formatMessageTime(
-                    message.created_at
+              <div className={`flex ${isMine? "justify-end" : "justify-start"}`}>
+                <div className="max-w-[82%] sm:max-w-[68%]">
+                  {hasMedia &&!isDeleted && (
+                    <div className={`mb-1 overflow-hidden rounded-2xl border ${isMine? "rounded-br-md border-purple-600" : "rounded-bl-md border-purple-100"}`}>
+                      {message.media_type?.startsWith("image/")? <img src={message.media_url} alt="" className="max-h-80 w-auto max-w-full object-cover" loading="lazy" /> : message.media_type?.startsWith("video/")? <video src={message.media_url} controls className="max-h-80 w-full" /> : <a href={message.media_url} target="_blank" rel="noreferrer" className="block bg-purple-50 px-4 py-3 text-sm text-purple-700 underline">Open attachment</a>}
+                    </div>
                   )}
+                  {(message.content || isDeleted) && (
+                    <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${isDeleted? "bg-gray-100 italic text-gray-500" : isMine? "rounded-br-md bg-purple-600 text-white" : "rounded-bl-md bg-gray-100 text-gray-900"}`}>
+                      <p className="whitespace-pre-wrap break-words">{isDeleted? "This message was deleted" : message.content}</p>
+                    </div>
+                  )}
+                  <div className={`mt-1 text-[10px] text-gray-400 ${isMine? "text-right" : "text-left"}`}>{formatTime(message.created_at)}{message.pending? " • Sending..." : ""}</div>
                 </div>
               </div>
-            </div>
+            </React.Fragment>
           );
         })}
-
         <div ref={bottomRef} />
       </div>
     </div>

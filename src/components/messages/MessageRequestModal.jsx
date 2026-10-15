@@ -1,22 +1,16 @@
 import React, { useEffect, useState } from "react";
-import {
-  X,
-  Send,
-  Loader2,
-  User,
-  MessageCircle,
-} from "lucide-react";
+import { X, Send, Loader2, User, MessageCircle, UserPlus } from "lucide-react";
 
 export default function MessageRequestModal({
   open = false,
   user = null,
+  type = "message_request", // "connection" or "message_request"
   onClose,
   onSubmit,
   submitting = false,
   initialMessage = "",
 }) {
-  const [message, setMessage] =
-    useState(initialMessage);
+  const [message, setMessage] = useState(initialMessage);
 
   useEffect(() => {
     if (open) {
@@ -25,45 +19,27 @@ export default function MessageRequestModal({
   }, [open, initialMessage]);
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-
+    if (!open) return;
     const handleEscape = (event) => {
       if (event.key === "Escape") {
         onClose?.();
       }
     };
-
-    document.addEventListener(
-      "keydown",
-      handleEscape
-    );
-
+    document.addEventListener("keydown", handleEscape);
     return () => {
-      document.removeEventListener(
-        "keydown",
-        handleEscape
-      );
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [open, onClose]);
 
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
-  const displayName =
-    user?.full_name ||
-    user?.username ||
-    "this user";
-
+  const displayName = user?.full_name || user?.username || "this user";
   const avatar = user?.avatar_url || null;
+  const isConnection = type === "connection";
 
   const handleSubmit = (event) => {
     event.preventDefault();
-
     const trimmedMessage = message.trim();
-
     onSubmit?.(trimmedMessage);
   };
 
@@ -81,20 +57,17 @@ export default function MessageRequestModal({
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-50 text-purple-600 ring-2 ring-purple-500/10">
-              <MessageCircle size={18} />
+              {isConnection ? <UserPlus size={18} /> : <MessageCircle size={18} />}
             </div>
-
             <div>
               <h2 className="text-sm font-bold text-gray-900">
-                Send message request
+                {isConnection ? "Send connection request" : "Send message request"}
               </h2>
-
               <p className="text-xs text-gray-500">
-                Start a conversation
+                {isConnection ? "Connect to start messaging" : "Start a conversation"}
               </p>
             </div>
           </div>
-
           <button
             type="button"
             onClick={onClose}
@@ -120,12 +93,10 @@ export default function MessageRequestModal({
                 <User size={20} />
               </div>
             )}
-
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-gray-900">
                 {displayName}
               </p>
-
               {user?.role && (
                 <p className="mt-0.5 text-xs font-medium capitalize text-purple-600">
                   {user.role.replace("_", " ")}
@@ -136,30 +107,23 @@ export default function MessageRequestModal({
         </div>
 
         {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="px-5 pb-5 pt-4"
-        >
+        <form onSubmit={handleSubmit} className="px-5 pb-5 pt-4">
           <label
             htmlFor="message-request"
             className="mb-2 block text-sm font-medium text-gray-800"
           >
-            Message
+            {isConnection ? "Message (optional)" : "Message"}
           </label>
-
           <textarea
             id="message-request"
             value={message}
-            onChange={(event) =>
-              setMessage(event.target.value)
-            }
+            onChange={(event) => setMessage(event.target.value)}
             rows={4}
             maxLength={1000}
             disabled={submitting}
-            placeholder={`Write a message to ${displayName}...`}
+            placeholder={isConnection ? `Write a message to ${displayName}...` : `Write a message to ${displayName}...`}
             className="w-full resize-none rounded-xl border border-gray-200 bg-purple-50/30 px-3 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-purple-300 focus:bg-white focus:ring-2 focus:ring-purple-100"
           />
-
           <div className="mt-1 text-right text-[10px] text-gray-400">
             {message.length}/1000
           </div>
@@ -167,12 +131,23 @@ export default function MessageRequestModal({
           {/* Information */}
           <div className="mt-3 rounded-xl bg-purple-50/60 border border-purple-100/80 p-3">
             <p className="text-xs leading-relaxed text-purple-900">
-              Your request will be sent to{" "}
-              <span className="font-semibold text-purple-950">
-                {displayName}
-              </span>
-              . You can start messaging once the request
-              is accepted.
+              {isConnection ? (
+                <>
+                  Your connection request will be sent to{" "}
+                  <span className="font-semibold text-purple-950">
+                    {displayName}
+                  </span>
+                  . Once accepted, you can message each other permanently.
+                </>
+              ) : (
+                <>
+                  Your message request will be sent to{" "}
+                  <span className="font-semibold text-purple-950">
+                    {displayName}
+                  </span>
+                  . You can start messaging once the request is accepted.
+                </>
+              )}
             </p>
           </div>
 
@@ -186,7 +161,6 @@ export default function MessageRequestModal({
             >
               Cancel
             </button>
-
             <button
               type="submit"
               disabled={submitting}
@@ -194,16 +168,13 @@ export default function MessageRequestModal({
             >
               {submitting ? (
                 <>
-                  <Loader2
-                    size={17}
-                    className="animate-spin"
-                  />
+                  <Loader2 size={17} className="animate-spin" />
                   Sending...
                 </>
               ) : (
                 <>
                   <Send size={17} />
-                  Send request
+                  {isConnection ? "Send connection request" : "Send request"}
                 </>
               )}
             </button>

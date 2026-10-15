@@ -138,7 +138,7 @@ export function AuthProvider({ children }) {
     }
 
     const {
-      data: publicUrlData,
+      data: publicUrlData
     } = supabase.storage
       .from("profile-media")
       .getPublicUrl(filePath);
@@ -210,7 +210,7 @@ export function AuthProvider({ children }) {
 
         const {
           data: { session },
-          error: sessionError,
+          error: sessionError
         } = await supabase.auth.getSession();
 
         if (sessionError) {
@@ -321,7 +321,7 @@ export function AuthProvider({ children }) {
           setProfile(null);
         }
       } finally {
-        initialSessionLoaded = true;
+        initialSessionLoaded = false;
 
         if (mounted) {
           setLoading(false);

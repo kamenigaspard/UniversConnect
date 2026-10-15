@@ -508,24 +508,38 @@ export default function MessagesPage() {
         content: messageText.trim(),
       });
 
-      setMessages((prev) => [...prev, newMessage]);
       setMessageText("");
 
+      // The RPC response gives us the message immediately. Realtime will
+      // also deliver it, but mergeRealtimeMessageIntoList prevents a duplicate.
+      mergeRealtimeMessageIntoList(newMessage);
+
       setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === activeConversation.id
-            ? {
-                ...conversation,
-                lastMessage: newMessage,
-                updated_at: newMessage.created_at,
-              }
-            : conversation
-        )
+        prev
+          .map((conversation) =>
+            conversation.id === activeConversation.id
+              ? {
+                  ...conversation,
+                  lastMessage: newMessage,
+                  updated_at: newMessage.created_at,
+                  unreadCount: 0,
+                }
+              : conversation
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.updated_at || 0).getTime() -
+              new Date(a.updated_at || 0).getTime()
+          )
       );
 
       setActiveConversation((prev) =>
         prev
-          ? { ...prev, lastMessage: newMessage, updated_at: newMessage.created_at }
+          ? {
+              ...prev,
+              lastMessage: newMessage,
+              updated_at: newMessage.created_at,
+            }
           : prev
       );
 
@@ -692,7 +706,7 @@ export default function MessagesPage() {
           <button
             type="button"
             title="New Message"
-            onClick={() => setNotice("Select a person from your conversations or search to start a message.")}
+            onClick={() => navigate("/search")}
             className="rounded-full p-2 text-purple-600 transition hover:bg-purple-50 active:scale-95"
           >
             <Edit3 size={20} />
