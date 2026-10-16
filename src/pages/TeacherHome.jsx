@@ -1,385 +1,865 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+
+import { useEffect, useRef, useState } from "react";
 import {
-    Bell,
-    ChevronLeft,
-    ChevronRight,
-    Heart,
-    Home,
-    MessageCircle,
-    Plus,
-    Search,
-    User,
-    Users
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  Home,
+  MessageCircle,
+  Plus,
+  Search,
+  Send,
+  User,
+  Users,
+  Heart,
 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import PostCard from "../components/PostCard";
 
-function TeacherHome() {
-    const navigate = useNavigate();
-    const { user, profile } = useAuth();
+// ============================================================
+// AnimatedPost
+// ============================================================
 
-    const [school, setSchool] = useState(null);
-    const [schoolLoading, setSchoolLoading] = useState(true);
-    const [schoolError, setSchoolError] = useState(null);
+const AnimatedPost = ({ children }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const domRef = useRef(null);
 
-    const [spotlights, setSpotlights] = useState([]);
-    const [currentSpotlight, setCurrentSpotlight] = useState(0);
+  useEffect(() => {
+    const element = domRef.current;
+    if (!element) return;
 
-    const [posts, setPosts] = useState([]);
-    const [postsLoading, setPostsLoading] = useState(true);
-    const [postsError, setPostsError] = useState("");
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      {
+        threshold: 0.15,
+        rootMargin: "0px 0px -50px 0px",
+      }
+    );
 
-    const [loading, setLoading] = useState(true);
+    observer.observe(element);
 
-    useEffect(() => {
-        if (!profile) return;
+    return () => observer.disconnect();
+  }, []);
 
-        if (!profile.school_id) {
-            setSchoolLoading(false);
-            setSchoolError("Your account has not been assigned to a school.");
-            setLoading(false);
-            return;
-        }
+  return (
+    <div
+      ref={domRef}
+      className={`transform transition-all duration-500 ease-out ${
+        isVisible
+          ? "translate-y-0 scale-100 opacity-100"
+          : "translate-y-10 scale-95 opacity-0"
+      }`}
+    >
+      {children}
+    </div>
+  );
+};
 
-        const loadAllData = async () => {
-            setLoading(true);
-            await Promise.all([
-                loadSchool(profile.school_id),
-                loadSpotlights(profile.school_id),
-                loadPosts()
-            ]);
-            setLoading(false);
-        };
+// ============================================================
+// TeacherHome
+// ============================================================
 
-        loadAllData();
-    }, [profile?.school_id]);
+const TeacherHome = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, profile } = useAuth();
 
-    const loadPosts = async () => {
-        setPostsLoading(true);
-        setPostsError("");
+  const [school, setSchool] = useState(null);
+  const [schoolLoading, setSchoolLoading] = useState(true);
+  const [schoolError, setSchoolError] = useState("");
 
-        try {
-            const { data, error } = await supabase
-                .from("posts")
-                .select(`
-                    *,
-                    profiles (id, full_name, username, avatar_url, role),
-                    schools (id, name, logo_url)
-                `)
-                .eq("is_deleted", false)
-                .order("created_at", { ascending: false });
+  const [spotlights, setSpotlights] = useState([]);
+  const [currentSpotlight, setCurrentSpotlight] = useState(0);
 
-            if (error) throw error;
-            setPosts(data || []);
-        } catch (error) {
-            console.error("Post loading error:", error);
-            setPostsError("Unable to load posts.");
-            setPosts([]);
-        } finally {
-            setPostsLoading(false);
-        }
-    };
+  const [posts, setPosts] = useState([]);
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(0);
 
-    const loadSpotlights = async (schoolId) => {
-        try {
-            const { data: spotlightData, error: spotlightError } = await supabase
-                .from("admin_spotlights")
-                .select(`
-                    id, profile_id, school_id, title, description,
-                    image_url, display_order, is_active, starts_at, ends_at
-                `)
-                .eq("school_id", schoolId)
-                .eq("is_active", true)
-                .order("display_order", { ascending: true });
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [postsError, setPostsError] = useState("");
 
-            if (spotlightError || !spotlightData || spotlightData.length === 0) {
-                setSpotlights([]);
-                return;
-            }
+  const [currentUserId, setCurrentUserId] = useState(user?.id || null);
+  const [loading, setLoading] = useState(true);
 
-            const profileIds = spotlightData.map(s => s.profile_id).filter(Boolean);
-            if (profileIds.length === 0) {
-                setSpotlights(spotlightData);
-                return;
-            }
+  const loadMoreRef = useRef(null);
+  const loadingMoreRef = useRef(false);
 
-            const { data: profileData } = await supabase
-                .from("profiles")
-                .select("id, full_name, avatar_url, role, school_id")
-                .in("id", profileIds);
+  // Keep the authenticated user ID current.
+  useEffect(() => {
+    if (user?.id) setCurrentUserId(user.id);
+  }, [user?.id]);
 
-            const combined = spotlightData.map(s => ({
-                ...s,
-                profiles: profileData?.find(p => p.id === s.profile_id) || null
-            }));
+  // Initial page load.
+  useEffect(() => {
+    if (!profile) return;
 
-            setSpotlights(combined);
-        } catch (error) {
-            console.error("Spotlight error:", error);
-            setSpotlights([]);
-        }
-    };
-
-    const loadSchool = async (schoolId) => {
-        setSchoolLoading(true);
-        setSchoolError("");
-
-        try {
-            const { data, error } = await supabase
-                .from("schools")
-                .select("id, name, code, logo_url, description, is_active")
-                .eq("id", schoolId)
-                .single();
-
-            if (error) throw error;
-
-            if (!data.is_active) {
-                setSchoolError("Your school is currently inactive.");
-                setSchool(null);
-            } else {
-                setSchool(data);
-            }
-        } catch (error) {
-            console.error("School loading error:", error);
-            setSchoolError("We could not load your school information.");
-            setSchool(null);
-        } finally {
-            setSchoolLoading(false);
-        }
-    };
-
-    const nextSpotlight = () => {
-        if (!spotlights.length) return;
-        setCurrentSpotlight((prev) => (prev + 1) % spotlights.length);
-    };
-
-    const previousSpotlight = () => {
-        if (!spotlights.length) return;
-        setCurrentSpotlight((prev) => (prev - 1 + spotlights.length) % spotlights.length);
-    };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
-                    <p className="mt-4 text-gray-500">Loading your university community...</p>
-                </div>
-            </div>
-        );
+    if (!profile.school_id) {
+      setLoading(false);
+      setSchoolLoading(false);
+      setSchoolError("Your account has not been assigned to a school.");
+      return;
     }
 
-    const spotlight = spotlights[currentSpotlight];
+    getCurrentUser();
+    loadPosts(0);
+    loadSchool();
+    loadSpotlights();
+    loadHomeData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id, profile?.school_id]);
 
-    return (
-        <div className="min-h-screen bg-gray-50 pb-20">
-            <header className="sticky top-0 z-40 border-b bg-white">
-                <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-                    <div className="flex items-center gap-3">
-                        {schoolLoading ? (
-                            <div className="h-10 w-10 animate-pulse rounded-full bg-gray-200" />
-                        ) : school?.logo_url ? (
-                            <img src={school.logo_url} alt={`${school.name} logo`} className="h-10 w-10 rounded-full object-cover" />
-                        ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-white">
-                                <Users size={20} />
-                            </div>
-                        )}
+  // ==========================================================
+  // GET CURRENT USER
+  // ==========================================================
 
-                        <div>
-                            {schoolLoading ? (
-                                <>
-                                    <div className="h-3 w-32 animate-pulse rounded bg-gray-200" />
-                                    <div className="mt-2 h-2 w-20 animate-pulse rounded bg-gray-200" />
-                                </>
-                            ) : school ? (
-                                <>
-                                    <h1 className="text-sm font-bold text-gray-900">{school.name}</h1>
-                                    <p className="text-xs text-gray-500">{school.code}</p>
-                                </>
-                            ) : (
-                                <>
-                                    <h1 className="text-sm font-bold text-gray-900">University Community</h1>
-                                    <p className="text-xs text-red-500">{schoolError || "School unavailable"}</p>
-                                </>
-                            )}
-                        </div>
-                    </div>
+  const getCurrentUser = async () => {
+    try {
+      const {
+        data: { user: authenticatedUser },
+        error,
+      } = await supabase.auth.getUser();
 
-                    <div className="flex items-center gap-2">
-                        <button className="rounded-full p-2 hover:bg-gray-100" aria-label="Search" onClick={() => navigate("/search")}>
-                            <Search size={21} />
-                        </button>
-                        <button className="relative rounded-full p-2 hover:bg-gray-100" aria-label="Notifications" onClick={() => navigate("/notifications")}>
-                            <Bell size={21} />
-                            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
-                        </button>
-                        <button className="rounded-full p-2 hover:bg-gray-100" aria-label="Messages" onClick={() => navigate("/messages")}>
-                            <MessageCircle size={21} />
-                        </button>
-                    </div>
-                </div>
-            </header>
+      if (error) throw error;
 
-            <main className="mx-auto max-w-2xl px-4 py-5">
-                <section className="mb-6">
-                    <div className="mb-3">
-                        <h2 className="font-bold text-gray-900">University Spotlight</h2>
-                        <p className="text-xs text-gray-500">Administrators and teachers from your school</p>
-                    </div>
+      if (authenticatedUser) {
+        setCurrentUserId(authenticatedUser.id);
+      }
+    } catch (error) {
+      console.error("Error getting current user:", error);
+    }
+  };
 
-                    {spotlights.length > 0 && spotlight ? (
-                        <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm">
-                            <div className="relative h-56">
-                                <img
-                                    src={spotlight.image_url || spotlight.profiles?.avatar_url || "/default-profile.png"}
-                                    alt={spotlight.profiles?.full_name || "University staff"}
-                                    className="h-full w-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                                <div className="absolute bottom-4 left-4 right-4 text-white">
-                                    <p className="text-xs font-medium uppercase tracking-wide">{spotlight.profiles?.role}</p>
-                                    <h3 className="mt-1 text-xl font-bold">{spotlight.profiles?.full_name}</h3>
-                                </div>
-                            </div>
+  // ==========================================================
+  // LOAD POSTS
+  // ==========================================================
 
-                            <div className="p-4">
-                                {spotlight.title && <h3 className="font-semibold text-gray-900">{spotlight.title}</h3>}
-                                {spotlight.description && <p className="mt-1 text-sm leading-6 text-gray-600">{spotlight.description}</p>}
-                                <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700">
-                                    <MessageCircle size={17} /> Message
-                                </button>
-                            </div>
+  const loadPosts = async (pageNumber = 0) => {
+    const from = pageNumber * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
-                            {spotlights.length > 1 && (
-                                <>
-                                    <button onClick={previousSpotlight} className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow" aria-label="Previous spotlight">
-                                        <ChevronLeft size={20} />
-                                    </button>
-                                    <button onClick={nextSpotlight} className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow" aria-label="Next spotlight">
-                                        <ChevronRight size={20} />
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
-                            <Users size={40} className="mx-auto text-gray-300" />
-                            <h3 className="mt-3 font-semibold text-gray-800">No spotlight yet</h3>
-                            <p className="mt-1 text-sm text-gray-500">Teachers and administrators featured by your school will appear here.</p>
-                        </div>
-                    )}
-                </section>
+    if (pageNumber === 0) {
+      setPostsLoading(true);
+      setHasMorePosts(true);
+    } else {
+      setLoadingMore(true);
+      loadingMoreRef.current = true;
+    }
 
-                <button
-                    type="button"
-                    onClick={() => navigate("/create-post")}
-                    className="mb-6 flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm transition hover:bg-gray-50"
-                >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full 
-                    bg-[#8b2cf6]/70 backdrop-blur-md
-                        backdrop-saturate-150
-                        border border-white/20
-                        shadaw-[0_4px_12px_rgba(139,44,236,0.3)]
-                        text-2*1
-                        transition-all
-                        duration-200
-                        hover:bg-[#8b2cf6]/90
-                        hover:backdrop-blur-lg
-                        hover:shadow-[0_6px_20px_rgba(139,44,246,0.4)]
-                        hover:scale-105
-                        active:bg-[#7c22e0]/80
-                        active:scale-95
-                        active:backdrop-blur-sm 
-                        text-white">
-                        <Plus size={22} />
-                    </div>
-                    <div>
-                        <p className="font-semibold text-gray-900">Create a post</p>
-                        <p className="text-sm text-gray-500">Share something with the university</p>
-                    </div>
-                </button>
+    setPostsError("");
 
-                <section className="space-y-4">
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-900">University Feed</h2>
-                        <p className="text-sm text-gray-500">What's happening across the university</p>
-                    </div>
+    try {
+      const {
+        data: { user: authenticatedUser },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-                    {postsLoading && (
-                        <div className="rounded-2xl bg-white p-8 text-center">
-                            <p className="text-sm text-gray-500">Loading posts...</p>
-                        </div>
-                    )}
+      if (userError) throw userError;
 
-                    {!postsLoading && postsError && (
-                        <div className="rounded-2xl bg-red-50 p-6 text-center">
-                            <p className="text-sm text-red-600">{postsError}</p>
-                        </div>
-                    )}
+      if (!authenticatedUser) {
+        throw new Error("You must be logged in to view the feed.");
+      }
 
-                    {!postsLoading && !postsError && posts.length === 0 && (
-                        <div className="rounded-2xl bg-white p-8 text-center">
-                            <p className="font-medium text-gray-800">No posts yet</p>
-                            <p className="mt-1 text-sm text-gray-500">Be the first person to share something with the university.</p>
-                        </div>
-                    )}
+      setCurrentUserId(authenticatedUser.id);
 
-                    {!postsLoading && posts.length > 0 && (
-                        <div className="space-y-4">
-                            {posts.map((post) => (
-                                <PostCard key={post.id} post={post} currentUserId={user?.id} />
-                            ))}
-                        </div>
-                    )}
-                </section>
-            </main>
+      const { data: postsData, error: postsQueryError } = await supabase
+        .from("posts")
+        .select(`
+          id,
+          author_id,
+          school_id,
+          content,
+          media_url,
+          media_type,
+          is_deleted,
+          created_at,
+          updated_at,
+          profiles (
+            id,
+            full_name,
+            username,
+            avatar_url,
+            role
+          ),
+          schools (
+            id,
+            name,
+            logo_url
+          )
+        `)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
-            <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white">
-                <div className="mx-auto flex h-16 max-w-2xl items-center justify-around">
-                    <button className="flex flex-col items-center gap-1 text-purple-600" onClick={() => navigate("/teacher-home")}>
-                        <Home size={22} />
-                        <span className="text-[10px] font-medium">Home</span>
-                    </button>
-                    <button className="flex flex-col items-center gap-1 text-gray-500" onClick={() => navigate("/search")}>
-                        <Search size={22} />
-                        <span className="text-[10px]">Search</span>
-                    </button>
-                    <button type="button" onClick={() => navigate("/create-post")} className="flex flex-col items-center justify-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full 
-                        bg-[#8b2cf6]/70 backdrop-blur-md
-                        backdrop-saturate-150
-                        border border-white/20
-                        shadaw-[0_4px_12px_rgba(139,44,236,0.3)]
-                        text-2*1
-                        transition-all
-                        duration-200
-                        hover:bg-[#8b2cf6]/90
-                        hover:backdrop-blur-lg
-                        hover:shadow-[0_6px_20px_rgba(139,44,246,0.4)]
-                        hover:scale-105
-                        active:bg-[#7c22e0]/80
-                        active:scale-95
-                        active:backdrop-blur-sm 
-                        text-white">
-                            <Plus size={22} />
-                        </div>
-                        <span className="mt-1 text-[10px] text-gray-500">Create</span>
-                    </button>
-                    <button className="relative flex flex-col items-center gap-1 text-gray-500" onClick={() => navigate("/requests")}>
-                        <Heart size={22} />
-                        <span className="text-[10px]">Requests</span>
-                    </button>
-                    <button className="flex flex-col items-center gap-1 text-gray-500" onClick={() => navigate("/profile")}>
-                        <User size={22} />
-                        <span className="text-[10px]">Profile</span>
-                    </button>
-                </div>
-            </nav>
-        </div>
+      if (postsQueryError) throw postsQueryError;
+
+      const currentPosts = postsData || [];
+      setHasMorePosts(currentPosts.length === PAGE_SIZE);
+
+      const postIds = currentPosts.map((post) => post.id);
+
+      let userLikes = [];
+      let allLikes = [];
+      let allComments = [];
+
+      if (postIds.length > 0) {
+        const [
+          { data: likedData, error: likedError },
+          { data: likesData, error: likesError },
+          { data: commentsData, error: commentsError },
+        ] = await Promise.all([
+          supabase
+            .from("likes")
+            .select("post_id")
+            .eq("user_id", authenticatedUser.id)
+            .in("post_id", postIds),
+
+          supabase
+            .from("likes")
+            .select("post_id")
+            .in("post_id", postIds),
+
+          supabase
+            .from("comments")
+            .select("post_id")
+            .in("post_id", postIds)
+            .eq("is_deleted", false),
+        ]);
+
+        if (likedError) throw likedError;
+        if (likesError) throw likesError;
+        if (commentsError) throw commentsError;
+
+        userLikes = likedData || [];
+        allLikes = likesData || [];
+        allComments = commentsData || [];
+      }
+
+      const likedPostIds = new Set(userLikes.map((like) => like.post_id));
+      const likeCounts = {};
+      const commentCounts = {};
+
+      allLikes.forEach(({ post_id }) => {
+        likeCounts[post_id] = (likeCounts[post_id] || 0) + 1;
+      });
+
+      allComments.forEach(({ post_id }) => {
+        commentCounts[post_id] = (commentCounts[post_id] || 0) + 1;
+      });
+
+      const formattedPosts = currentPosts.map((post) => ({
+        ...post,
+        isLiked: likedPostIds.has(post.id),
+        likeCount: likeCounts[post.id] || 0,
+        commentCount: commentCounts[post.id] || 0,
+      }));
+
+      setPosts((previousPosts) =>
+        pageNumber === 0
+          ? formattedPosts
+          : [
+              ...previousPosts,
+              ...formattedPosts.filter(
+                (post) => !previousPosts.some((item) => item.id === post.id)
+              ),
+            ]
+      );
+
+      setPage(pageNumber);
+    } catch (error) {
+      console.error("Error loading posts:", error);
+      setPostsError(error.message || "Unable to load posts.");
+    } finally {
+      setPostsLoading(false);
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
+    }
+  };
+
+  // ==========================================================
+  // INFINITE SCROLL
+  // ==========================================================
+
+  useEffect(() => {
+    const element = loadMoreRef.current;
+
+    if (!element || !hasMorePosts || postsLoading) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (
+          entry.isIntersecting &&
+          !loadingMoreRef.current &&
+          !postsLoading
+        ) {
+          loadingMoreRef.current = true;
+          loadPosts(page + 1);
+        }
+      },
+      { rootMargin: "500px 0px", threshold: 0 }
     );
-}
 
-export default TeacherHome; 
+    observer.observe(element);
+
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, hasMorePosts, postsLoading]);
+
+  // ==========================================================
+  // LOAD SCHOOL
+  // ==========================================================
+
+  const loadSchool = async () => {
+    if (!profile?.school_id) return;
+
+    setSchoolLoading(true);
+    setSchoolError("");
+
+    try {
+      const { data, error } = await supabase
+        .from("schools")
+        .select("id, name, code, logo_url, description, is_active")
+        .eq("id", profile.school_id)
+        .single();
+
+      if (error) throw error;
+      setSchool(data);
+    } catch (error) {
+      console.error("Error loading school:", error);
+      setSchoolError(error.message || "Unable to load school information.");
+    } finally {
+      setSchoolLoading(false);
+    }
+  };
+
+  // ==========================================================
+  // LOAD ADMIN SPOTLIGHTS
+  // ==========================================================
+
+  const loadSpotlights = async () => {
+    if (!profile?.school_id) return;
+
+    try {
+      const { data: spotlightData, error: spotlightError } = await supabase
+        .from("admin_spotlights")
+        .select(`
+          id,
+          profile_id,
+          school_id,
+          title,
+          description,
+          image_url,
+          display_order,
+          is_active,
+          starts_at,
+          ends_at,
+          created_at
+        `)
+        .eq("school_id", profile.school_id)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+
+      if (spotlightError) throw spotlightError;
+
+      if (!spotlightData?.length) {
+        setSpotlights([]);
+        setCurrentSpotlight(0);
+        return;
+      }
+
+      const now = new Date();
+
+      const activeSpotlights = spotlightData.filter((item) => {
+        const hasStarted = !item.starts_at || new Date(item.starts_at) <= now;
+        const hasNotEnded = !item.ends_at || new Date(item.ends_at) >= now;
+        return hasStarted && hasNotEnded;
+      });
+
+      const profileIds = [
+        ...new Set(
+          activeSpotlights.map((item) => item.profile_id).filter(Boolean)
+        ),
+      ];
+
+      let profileData = [];
+
+      if (profileIds.length) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, avatar_url, bio, role, school_id")
+          .in("id", profileIds);
+
+        if (error) throw error;
+        profileData = data || [];
+      }
+
+      const combinedSpotlights = activeSpotlights.map((spotlight) => ({
+        ...spotlight,
+        profile:
+          profileData.find((item) => item.id === spotlight.profile_id) || null,
+      }));
+
+      setSpotlights(combinedSpotlights);
+      setCurrentSpotlight(0);
+    } catch (error) {
+      console.error("Error loading spotlights:", error);
+      setSpotlights([]);
+      setCurrentSpotlight(0);
+    }
+  };
+
+  // ==========================================================
+  // LOAD HOME DATA
+  // ==========================================================
+
+  const loadHomeData = async () => {
+    try {
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading home data:", error);
+      setLoading(false);
+    }
+  };
+
+  // ==========================================================
+  // SPOTLIGHT CONTROLS
+  // ==========================================================
+
+  const previousSpotlight = () => {
+    if (!spotlights.length) return;
+
+    setCurrentSpotlight((previous) =>
+      previous === 0 ? spotlights.length - 1 : previous - 1
+    );
+  };
+
+  const nextSpotlight = () => {
+    if (!spotlights.length) return;
+
+    setCurrentSpotlight((previous) =>
+      previous === spotlights.length - 1 ? 0 : previous + 1
+    );
+  };
+
+  // ==========================================================
+  // CREATE POST / RETRY
+  // ==========================================================
+
+  const handleCreatePost = () => navigate("/create-post");
+
+  const handleRetryPosts = () => {
+    setPage(0);
+    setHasMorePosts(true);
+    setPostsError("");
+    loadPosts(0);
+  };
+
+  // ==========================================================
+  // LOADING SCREEN
+  // ==========================================================
+
+  if (loading && !profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-purple-600" />
+          <p className="text-sm text-gray-500">Loading your home...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================================
+  // MAIN PAGE
+  // ==========================================================
+
+  const isActive = (path) => location.pathname === path;
+
+  const navItems = [
+    {
+      label: "Home",
+      path: "/student-home",
+      icon: Home,
+    },
+    {
+      label: "Search",
+      path: "/search",
+      icon: Search,
+    },
+    {
+      label: "Requests",
+      path: "/requests",
+      icon: Heart,
+    },
+    {
+      label: "Profile",
+      path: "/profile",
+      icon: User,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* HEADER */}
+      <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            {school?.logo_url ? (
+              <img
+                src={school.logo_url}
+                alt={school.name || "School logo"}
+                className="h-10 w-10 rounded-full object-cover ring-1 ring-gray-200"
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                <Users size={20} />
+              </div>
+            )}
+
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold text-gray-900">
+                {schoolLoading ? "Loading school..." : school?.name || "University"}
+              </h1>
+              <p className="truncate text-xs text-gray-500">
+                {profile?.full_name || profile?.username || "Student"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => navigate("/notifications")}
+              className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100"
+              aria-label="Notifications"
+            >
+              <Bell size={21} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/messages")}
+              className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100"
+              aria-label="Messages"
+            >
+              <Send size={21} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl px-3 sm:px-4">
+        {/* SCHOOL ERROR */}
+        {schoolError && (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm text-red-700">{schoolError}</p>
+          </div>
+        )}
+
+        {/* ADMIN SPOTLIGHT */}
+        {spotlights.length > 0 && (
+          <section className="mt-4">
+            <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+              <div className="relative aspect-[16/8] w-full overflow-hidden bg-gray-100">
+                {spotlights[currentSpotlight]?.image_url ||
+                spotlights[currentSpotlight]?.profile?.avatar_url ? (
+                  <img
+                    src={
+                      spotlights[currentSpotlight]?.image_url ||
+                      spotlights[currentSpotlight]?.profile?.avatar_url
+                    }
+                    alt={
+                      spotlights[currentSpotlight]?.profile?.full_name ||
+                      "Administrator spotlight"
+                    }
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-gray-100">
+                    <Users size={48} className="text-gray-300" />
+                  </div>
+                )}
+
+                {spotlights.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={previousSpotlight}
+                      className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
+                      aria-label="Previous spotlight"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={nextSpotlight}
+                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
+                      aria-label="Next spotlight"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="p-4">
+                <div className="flex items-center gap-3">
+                  {spotlights[currentSpotlight]?.profile?.avatar_url ? (
+                    <img
+                      src={spotlights[currentSpotlight].profile.avatar_url}
+                      alt={spotlights[currentSpotlight].profile.full_name || "Administrator"}
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                      <User size={18} />
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {spotlights[currentSpotlight]?.profile?.full_name ||
+                        spotlights[currentSpotlight]?.profile?.username ||
+                        "Administrator"}
+                    </p>
+                    <p className="text-xs text-gray-500">Administrator Spotlight</p>
+                  </div>
+                </div>
+
+                {spotlights[currentSpotlight]?.title && (
+                  <h2 className="mt-3 text-base font-semibold text-gray-900">
+                    {spotlights[currentSpotlight].title}
+                  </h2>
+                )}
+
+                {spotlights[currentSpotlight]?.description && (
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    {spotlights[currentSpotlight].description}
+                  </p>
+                )}
+
+                {spotlights.length > 1 && (
+                  <div className="mt-4 flex justify-center gap-1.5">
+                    {spotlights.map((spotlight, index) => (
+                      <button
+                        key={spotlight.id}
+                        type="button"
+                        onClick={() => setCurrentSpotlight(index)}
+                        className={`h-1.5 rounded-full transition-all ${
+                          index === currentSpotlight
+                            ? "w-5 bg-purple-600"
+                            : "w-1.5 bg-gray-300"
+                        }`}
+                        aria-label={`Show spotlight ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* CREATE POST CARD */}
+        <section className="mt-4">
+          <button
+            type="button"
+            onClick={handleCreatePost}
+            className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-gray-100 transition hover:ring-gray-200"
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={profile.full_name || "Your profile"}
+                className="h-10 w-10 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                <User size={20} />
+              </div>
+            )}
+
+            <div className="flex-1 rounded-full bg-gray-100 px-4 py-2.5">
+              <span className="text-sm text-gray-500">
+                What's happening at your university?
+              </span>
+            </div>
+
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white">
+              <Plus size={20} />
+            </div>
+          </button>
+        </section>
+
+        {/* FEED */}
+        <section className="mt-4 space-y-4">
+          {postsLoading && (
+            <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-12 shadow-sm ring-1 ring-gray-100">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-purple-600" />
+              <p className="mt-3 text-sm text-gray-500">Loading posts...</p>
+            </div>
+          )}
+
+          {!postsLoading && postsError && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+              <p className="text-sm font-medium text-red-700">{postsError}</p>
+              <button
+                type="button"
+                onClick={handleRetryPosts}
+                className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {!postsLoading && !postsError && posts.length === 0 && (
+            <div className="rounded-2xl bg-white px-5 py-12 text-center shadow-sm ring-1 ring-gray-100">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+                <MessageCircle size={26} className="text-gray-400" />
+              </div>
+              <h2 className="mt-4 text-base font-semibold text-gray-900">No posts yet</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Be the first person to share something with your university community.
+              </p>
+              <button
+                type="button"
+                onClick={handleCreatePost}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700"
+              >
+                <Plus size={17} />
+                Create a post
+              </button>
+            </div>
+          )}
+
+          {!postsLoading &&
+            !postsError &&
+            posts.map((post) => (
+              <AnimatedPost key={post.id}>
+                <PostCard post={post} currentUserId={currentUserId} />
+              </AnimatedPost>
+            ))}
+
+          {!postsError && posts.length > 0 && hasMorePosts && (
+            <div
+              ref={loadMoreRef}
+              className="flex min-h-[80px] items-center justify-center"
+            >
+              {loadingMore && (
+                <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-purple-600" />
+                  <span>Loading more posts...</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!postsError && posts.length > 0 && !hasMorePosts && (
+            <div className="py-8 text-center">
+              <p className="text-sm font-medium text-gray-500">
+                You've reached the end of the feed.
+              </p>
+              <p className="mt-1 text-xs text-gray-400">No more posts to show.</p>
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* ======================================================
+          FIXED BOTTOM NAVIGATION
+          Home | Search | Create | Requests | Profile
+          ====================================================== */}
+
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 backdrop-blur-md"
+        aria-label="Bottom navigation"
+      >
+        <div className="mx-auto grid h-[68px] max-w-3xl grid-cols-5 items-center px-1 sm:px-3">
+          {/* HOME */}
+          <button
+            type="button"
+            onClick={() => navigate("/student-home")}
+            aria-current={isActive("/student-home") ? "page" : undefined}
+            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+              isActive("/student-home")
+                ? "text-purple-600"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            <Home size={22} strokeWidth={isActive("/student-home") ? 2.3 : 1.8} />
+            <span className="text-[10px] leading-none">Home</span>
+          </button>
+
+          {/* SEARCH */}
+          <button
+            type="button"
+            onClick={() => navigate("/search")}
+            aria-current={isActive("/search") ? "page" : undefined}
+            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+              isActive("/search")
+                ? "text-purple-600"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            <Search size={22} strokeWidth={isActive("/search") ? 2.3 : 1.8} />
+            <span className="text-[10px] leading-none">Search</span>
+          </button>
+
+          {/* CREATE */}
+          <button
+            type="button"
+            onClick={handleCreatePost}
+            aria-label="Create post"
+            className="flex h-full flex-col items-center justify-center gap-1 text-gray-500"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500 text-white shadow-[0_4px_12px_rgba(139,44,236,0.30)] transition duration-200 hover:scale-105 hover:bg-purple-600 active:scale-95">
+              <Plus size={25} strokeWidth={1.8} />
+            </span>
+            <span className="text-[10px] leading-none">Create</span>
+          </button>
+
+          {/* REQUESTS */}
+          <button
+            type="button"
+            onClick={() => navigate("/requests")}
+            aria-current={isActive("/requests") ? "page" : undefined}
+            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+              isActive("/requests")
+                ? "text-purple-600"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            <Heart
+              size={22}
+              strokeWidth={isActive("/requests") ? 2.3 : 1.8}
+              fill={isActive("/requests") ? "currentColor" : "none"}
+            />
+            <span className="text-[10px] leading-none">Requests</span>
+          </button>
+
+          {/* PROFILE */}
+          <button
+            type="button"
+            onClick={() => navigate("/profile")}
+            aria-current={isActive("/profile") ? "page" : undefined}
+            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+              isActive("/profile")
+                ? "text-purple-600"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            <User size={22} strokeWidth={isActive("/profile") ? 2.3 : 1.8} />
+            <span className="text-[10px] leading-none">Profile</span>
+          </button>
+        </div>
+      </nav>
+    </div>
+  );
+};
+
+export default TeacherHome;
