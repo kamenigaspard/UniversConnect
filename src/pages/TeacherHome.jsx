@@ -465,7 +465,7 @@ const TeacherHome = () => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-purple-600" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-100 border-t-violet-600 shadow-[0_0_14px_rgba(139,92,246,0.35)]" />
           <p className="text-sm text-gray-500">Loading your home...</p>
         </div>
       </div>
@@ -502,19 +502,19 @@ const TeacherHome = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_rgba(196,181,253,0.22),_transparent_42%),linear-gradient(180deg,#fcfaff_0%,#f8f5ff_55%,#ffffff_100%)] pb-24 text-slate-900 selection:bg-violet-200">
       {/* HEADER */}
-      <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-violet-200/70 bg-white/80 shadow-[0_4px_24px_rgba(124,58,237,0.08)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             {school?.logo_url ? (
               <img
                 src={school.logo_url}
                 alt={school.name || "School logo"}
-                className="h-10 w-10 rounded-full object-cover ring-1 ring-gray-200"
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-violet-300/70 shadow-[0_0_14px_rgba(139,92,246,0.25)]"
               />
             ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-violet-200/80 bg-gradient-to-br from-violet-100 via-purple-100 to-fuchsia-100 text-violet-700 shadow-[0_0_18px_rgba(139,92,246,0.25)]">
                 <Users size={20} />
               </div>
             )}
@@ -533,7 +533,7 @@ const TeacherHome = () => {
             <button
               type="button"
               onClick={() => navigate("/notifications")}
-              className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100"
+              className="rounded-full border border-violet-200/70 bg-gradient-to-br from-white/95 via-violet-50/90 to-fuchsia-100/80 p-2 text-violet-700 shadow-[0_0_14px_rgba(139,92,246,0.18)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_0_22px_rgba(139,92,246,0.38)] active:scale-95"
               aria-label="Notifications"
             >
               <Bell size={21} />
@@ -542,7 +542,7 @@ const TeacherHome = () => {
             <button
               type="button"
               onClick={() => navigate("/messages")}
-              className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100"
+              className="rounded-full border border-violet-200/70 bg-gradient-to-br from-white/95 via-violet-50/90 to-fuchsia-100/80 p-2 text-violet-700 shadow-[0_0_14px_rgba(139,92,246,0.18)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_0_22px_rgba(139,92,246,0.38)] active:scale-95"
               aria-label="Messages"
             >
               <Send size={21} />
@@ -562,7 +562,7 @@ const TeacherHome = () => {
         {/* ADMIN SPOTLIGHT */}
         {spotlights.length > 0 && (
           <section className="mt-4">
-            <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+            <div className="relative overflow-hidden rounded-2xl border border-violet-200/70 bg-white/80 shadow-[0_8px_30px_rgba(109,40,217,0.10)] ring-1 ring-white/80 backdrop-blur-xl">
               <div className="relative aspect-[16/8] w-full overflow-hidden bg-gray-100">
                 {spotlights[currentSpotlight]?.image_url ||
                 spotlights[currentSpotlight]?.profile?.avatar_url ? (
@@ -588,7 +588,7 @@ const TeacherHome = () => {
                     <button
                       type="button"
                       onClick={previousSpotlight}
-                      className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
+                      className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/50 bg-violet-600/65 text-white shadow-[0_0_18px_rgba(192,132,252,0.55)] backdrop-blur-xl transition hover:bg-violet-500/85 hover:shadow-[0_0_26px_rgba(192,132,252,0.8)]"
                       aria-label="Previous spotlight"
                     >
                       <ChevronLeft size={20} />
@@ -597,7 +597,7 @@ const TeacherHome = () => {
                     <button
                       type="button"
                       onClick={nextSpotlight}
-                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
+                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/50 bg-violet-600/65 text-white shadow-[0_0_18px_rgba(192,132,252,0.55)] backdrop-blur-xl transition hover:bg-violet-500/85 hover:shadow-[0_0_26px_rgba(192,132,252,0.8)]"
                       aria-label="Next spotlight"
                     >
                       <ChevronRight size={20} />
@@ -615,7 +615,7 @@ const TeacherHome = () => {
                       className="h-9 w-9 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-violet-200/80 bg-gradient-to-br from-violet-100 to-fuchsia-100 text-violet-700 shadow-[0_0_16px_rgba(139,92,246,0.24)]">
                       <User size={18} />
                     </div>
                   )}
@@ -651,7 +651,7 @@ const TeacherHome = () => {
                         onClick={() => setCurrentSpotlight(index)}
                         className={`h-1.5 rounded-full transition-all ${
                           index === currentSpotlight
-                            ? "w-5 bg-purple-600"
+                            ? "w-5 bg-gradient-to-r from-violet-500 via-purple-600 to-fuchsia-500 shadow-[0_0_12px_rgba(168,85,247,0.75)]"
                             : "w-1.5 bg-gray-300"
                         }`}
                         aria-label={`Show spotlight ${index + 1}`}
@@ -669,7 +669,7 @@ const TeacherHome = () => {
           <button
             type="button"
             onClick={handleCreatePost}
-            className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-gray-100 transition hover:ring-gray-200"
+            className="group flex w-full items-center gap-3 rounded-2xl border border-violet-200/70 bg-white/75 p-4 text-left shadow-[0_8px_28px_rgba(109,40,217,0.08)] ring-1 ring-white/80 backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_12px_34px_rgba(124,58,237,0.17)]"
           >
             {profile?.avatar_url ? (
               <img
@@ -678,18 +678,18 @@ const TeacherHome = () => {
                 className="h-10 w-10 shrink-0 rounded-full object-cover"
               />
             ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-200/80 bg-gradient-to-br from-violet-100 via-purple-100 to-fuchsia-100 text-violet-700 shadow-[0_0_18px_rgba(139,92,246,0.25)]">
                 <User size={20} />
               </div>
             )}
 
-            <div className="flex-1 rounded-full bg-gray-100 px-4 py-2.5">
+            <div className="flex-1 rounded-full border border-violet-200/70 bg-gradient-to-r from-violet-50/90 via-white/90 to-fuchsia-50/80 px-4 py-2.5 shadow-inner shadow-violet-100/70 transition group-hover:border-violet-300">
               <span className="text-sm text-gray-500">
                 What's happening at your university?
               </span>
             </div>
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/70 bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.85),0_0_26px_rgba(124,58,237,0.45)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_16px_rgba(192,132,252,1),0_0_34px_rgba(124,58,237,0.55)] active:scale-95">
               <Plus size={20} />
             </div>
           </button>
@@ -699,7 +699,7 @@ const TeacherHome = () => {
         <section className="mt-4 space-y-4">
           {postsLoading && (
             <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-12 shadow-sm ring-1 ring-gray-100">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-purple-600" />
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-100 border-t-violet-600 shadow-[0_0_14px_rgba(139,92,246,0.35)]" />
               <p className="mt-3 text-sm text-gray-500">Loading posts...</p>
             </div>
           )}
@@ -710,7 +710,7 @@ const TeacherHome = () => {
               <button
                 type="button"
                 onClick={handleRetryPosts}
-                className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                className="mt-3 rounded-xl border border-red-200 bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(220,38,38,0.22)] transition hover:bg-red-700"
               >
                 Try again
               </button>
@@ -719,7 +719,7 @@ const TeacherHome = () => {
 
           {!postsLoading && !postsError && posts.length === 0 && (
             <div className="rounded-2xl bg-white px-5 py-12 text-center shadow-sm ring-1 ring-gray-100">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-violet-200/80 bg-gradient-to-br from-violet-100 to-fuchsia-100 text-violet-700 shadow-[0_0_24px_rgba(139,92,246,0.22)]">
                 <MessageCircle size={26} className="text-gray-400" />
               </div>
               <h2 className="mt-4 text-base font-semibold text-gray-900">No posts yet</h2>
@@ -729,7 +729,7 @@ const TeacherHome = () => {
               <button
                 type="button"
                 onClick={handleCreatePost}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/60 bg-gradient-to-r from-violet-500 via-purple-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_12px_rgba(168,85,247,0.55),0_6px_18px_rgba(109,40,217,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(192,132,252,0.8),0_8px_24px_rgba(109,40,217,0.30)] active:scale-95"
               >
                 <Plus size={17} />
                 Create a post
@@ -752,7 +752,7 @@ const TeacherHome = () => {
             >
               {loadingMore && (
                 <div className="flex items-center gap-3 text-sm text-gray-500">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-purple-600" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-100 border-t-violet-600 shadow-[0_0_10px_rgba(139,92,246,0.35)]" />
                   <span>Loading more posts...</span>
                 </div>
               )}
@@ -776,7 +776,7 @@ const TeacherHome = () => {
           ====================================================== */}
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-200/70 bg-white/75 shadow-[0_-8px_30px_rgba(109,40,217,0.10)] backdrop-blur-2xl"
         aria-label="Bottom navigation"
       >
         <div className="mx-auto grid h-[68px] max-w-3xl grid-cols-5 items-center px-1 sm:px-3">
@@ -787,8 +787,8 @@ const TeacherHome = () => {
             aria-current={isActive("/student-home") ? "page" : undefined}
             className={`flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/student-home")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
+                : "text-slate-500 transition hover:text-violet-700"
             }`}
           >
             <Home size={22} strokeWidth={isActive("/student-home") ? 2.3 : 1.8} />
@@ -802,8 +802,8 @@ const TeacherHome = () => {
             aria-current={isActive("/search") ? "page" : undefined}
             className={`flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/search")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
+                : "text-slate-500 transition hover:text-violet-700"
             }`}
           >
             <Search size={22} strokeWidth={isActive("/search") ? 2.3 : 1.8} />
@@ -815,9 +815,9 @@ const TeacherHome = () => {
             type="button"
             onClick={handleCreatePost}
             aria-label="Create post"
-            className="flex h-full flex-col items-center justify-center gap-1 text-gray-500"
+            className="flex h-full flex-col items-center justify-center gap-1 text-slate-500 transition hover:text-violet-700"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500 text-white shadow-[0_4px_12px_rgba(139,44,236,0.30)] transition duration-200 hover:scale-105 hover:bg-purple-600 active:scale-95">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/80 bg-gradient-to-br from-violet-400 via-purple-600 to-fuchsia-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.95),0_0_24px_rgba(124,58,237,0.48)] transition duration-200 hover:scale-110 hover:shadow-[0_0_18px_rgba(192,132,252,1),0_0_34px_rgba(124,58,237,0.65)] active:scale-95">
               <Plus size={25} strokeWidth={1.8} />
             </span>
             <span className="text-[10px] leading-none">Create</span>
@@ -830,8 +830,8 @@ const TeacherHome = () => {
             aria-current={isActive("/requests") ? "page" : undefined}
             className={`flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/requests")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
+                : "text-slate-500 transition hover:text-violet-700"
             }`}
           >
             <Heart
@@ -849,8 +849,8 @@ const TeacherHome = () => {
             aria-current={isActive("/profile") ? "page" : undefined}
             className={`flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/profile")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
+                : "text-slate-500 transition hover:text-violet-700"
             }`}
           >
             <User size={22} strokeWidth={isActive("/profile") ? 2.3 : 1.8} />
