@@ -511,14 +511,15 @@ export default function CreatePost({ onPostCreated }) {
 
     return (
 
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
+        <section className="relative isolate overflow-hidden rounded-3xl border border-white/80 bg-gradient-to-br from-white/90 via-white/75 to-violet-50/80 p-4 shadow-[0_18px_60px_rgba(91,33,182,0.13)] backdrop-blur-2xl sm:p-6">           <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-fuchsia-300/20 blur-3xl" />          
+         <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -left-12 h-44 w-44 rounded-full bg-violet-300/25 blur-3xl" />
 
             {/* ==================================================
                 HEADER
             ================================================== */}
 
 
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-6 flex items-center gap-3">
                      <button
                           type="button"
                           onClick={() =>
@@ -528,8 +529,8 @@ export default function CreatePost({ onPostCreated }) {
                             }
                           }
                           }
-                          className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
-                          aria-label=""
+                          className="rounded-full border border-violet-200/80 bg-white/80 p-2.5 text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-400/60"
+                          aria-label="Go back"
                         >
             
                          <ArrowLeftCircle />
@@ -542,17 +543,17 @@ export default function CreatePost({ onPostCreated }) {
                         "/default-avatar.png"
                     }
                     alt=""
-                    className="h-11 w-11 rounded-full object-cover"
+                    className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-[0_0_0_2px_rgba(167,139,250,0.55),0_0_24px_rgba(168,85,247,0.25)]"
                 />
 
 
                 <div>
 
-                    <h2 className="font-semibold text-gray-900">
+                    <h2 className="bg-gradient-to-r from-violet-950 via-purple-800 to-fuchsia-700 bg-clip-text font-bold tracking-tight text-transparent">
                         Create a post
                     </h2>
 
-                    <p className="text-xs text-gray-500">
+                    <p className="mt-0.5 text-xs text-slate-500">
                         Share something with the university
                     </p>
 
@@ -579,15 +580,15 @@ export default function CreatePost({ onPostCreated }) {
                     maxLength={5000}
                     placeholder="What's happening at the university?"
                     rows={4}
-                    className="w-full resize-none rounded-xl border border-gray-200 p-3 text-sm outline-none transition focus:border-blue-500"
+                    className="w-full resize-none rounded-2xl border border-violet-100/90 bg-white/75 p-4 text-sm leading-6 text-slate-800 shadow-inner shadow-violet-100/40 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-300/20"
                 />
 
 
                 {/* CHARACTER COUNT */}
 
-                <div className="mt-1 text-right">
+                <div className="mt-2 text-right">
 
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs font-medium text-slate-400">
 
                         {content.length}/5000
 
@@ -602,14 +603,14 @@ export default function CreatePost({ onPostCreated }) {
 
                 {previewUrl && (
 
-                    <div className="relative mt-4 overflow-hidden rounded-xl">
+                    <div className="relative mt-5 overflow-hidden rounded-2xl border border-violet-100 bg-violet-50/70 shadow-[0_12px_36px_rgba(91,33,182,0.12)]">
 
                         {mediaType === "image" && (
 
                             <img
                                 src={previewUrl}
                                 alt="Post preview"
-                                className="max-h-[500px] w-full object-cover"
+                                className="max-h-[500px] w-full object-contain"
                             />
 
                         )}
@@ -620,7 +621,7 @@ export default function CreatePost({ onPostCreated }) {
                             <video
                                 src={previewUrl}
                                 controls
-                                className="max-h-[500px] w-full"
+                                className="max-h-[500px] w-full bg-slate-950"
                             />
 
                         )}
@@ -631,7 +632,7 @@ export default function CreatePost({ onPostCreated }) {
                         <button
                             type="button"
                             onClick={removeMedia}
-                            className="absolute right-3 top-3 rounded-full bg-black/70 p-2 text-white hover:bg-black"
+                            className="absolute right-3 top-3 rounded-full border border-white/30 bg-slate-950/70 p-2.5 text-white shadow-lg backdrop-blur-md transition hover:bg-fuchsia-700"
                         >
 
                             <X size={18} />
@@ -649,9 +650,9 @@ export default function CreatePost({ onPostCreated }) {
 
                 {error && (
 
-                    <div className="mt-3 rounded-lg bg-red-50 p-3">
+                    <div className="mt-4 rounded-2xl border border-rose-200/80 bg-rose-50/90 p-3.5 shadow-sm">
 
-                        <p className="text-sm text-red-600">
+                        <p className="text-sm font-medium text-rose-700">
                             {error}
                         </p>
 
@@ -666,9 +667,9 @@ export default function CreatePost({ onPostCreated }) {
 
                 {success && (
 
-                    <div className="mt-3 rounded-lg bg-green-50 p-3">
+                    <div className="mt-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-3.5 shadow-sm">
 
-                        <p className="text-sm text-green-600">
+                        <p className="text-sm font-medium text-emerald-700">
                             {success}
                         </p>
 
@@ -681,7 +682,7 @@ export default function CreatePost({ onPostCreated }) {
                     ACTION BAR
                 ================================================= */}
 
-                <div className="mt-4 flex items-center justify-between">
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-violet-100/90 pt-4">
 
                     {/* MEDIA OPTIONS */}
 
@@ -695,7 +696,7 @@ export default function CreatePost({ onPostCreated }) {
                                 imageInputRef.current?.click()
                             }
                             disabled={loading}
-                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
+                            className="flex items-center gap-2 rounded-xl border border-violet-100 bg-white/75 px-3.5 py-2.5 text-sm font-medium text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:shadow-[0_0_20px_rgba(139,92,246,0.13)] disabled:cursor-not-allowed disabled:opacity-50"
                         >
 
                             <Image
@@ -717,7 +718,7 @@ export default function CreatePost({ onPostCreated }) {
                                 videoInputRef.current?.click()
                             }
                             disabled={loading}
-                            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
+                            className="flex items-center gap-2 rounded-xl border border-violet-100 bg-white/75 px-3.5 py-2.5 text-sm font-medium text-violet-800 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:shadow-[0_0_20px_rgba(139,92,246,0.13)] disabled:cursor-not-allowed disabled:opacity-50"
                         >
 
                             <Video
@@ -770,7 +771,7 @@ export default function CreatePost({ onPostCreated }) {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-700 via-purple-600 to-fuchsia-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(124,58,237,0.32)] transition duration-200 hover:-translate-y-0.5 hover:from-violet-600 hover:via-purple-600 hover:to-fuchsia-500 hover:shadow-[0_12px_30px_rgba(168,85,247,0.4)] focus:outline-none focus:ring-4 focus:ring-violet-300/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                     >
 
                         {loading ? (

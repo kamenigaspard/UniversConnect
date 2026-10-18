@@ -10,6 +10,7 @@ import { searchMessagingUsers, getMessagingState, createPrivateConversation, cre
 import { getMessagingRule } from "../services/messaging/messagingPermissions";
 import MessageRequestModal from "../components/messages/MessageRequestModal";
 import BottomNavbar from "../components/BottomNavbar";
+import { Home, Heart, Plus } from "lucide-react";
 
 function SearchPage() {
   const navigate = useNavigate();

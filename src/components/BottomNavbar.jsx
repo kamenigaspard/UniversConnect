@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Search, Heart, User, Plus } from "lucide-react";
+import { Home, Search, Heart, User, Plus,Settings } from "lucide-react";
 
 /**
  * Reusable glassmorphism bottom navigation.
@@ -11,6 +11,7 @@ import { Home, Search, Heart, User, Plus } from "lucide-react";
  *     { label: "Search", path: "/search", icon: Search },
  *     { label: "Requests", path: "/requests", icon: Heart },
  *     { label: "Profile", path: "/profile", icon: User },
+ *     { label: "Settings", path: "/settings", icon: Settings },
  *   ]}
  *   createPath="/create-post"
  * />

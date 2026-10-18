@@ -1,63 +1,401 @@
-/**
- * Global stylesheet for the University Social application.
- *
- * Tailwind CSS is imported here so that we can use
- * utility classes throughout our React components.
- */
 
 @import "tailwindcss";
 
-/**
- * Global application defaults.
- */
+/* =========================================================
+   UNIVERSE — GLOBAL THEME VARIABLES
+   Theme is controlled by document.documentElement.dataset.theme
+   Values: "light" or "dark"
+========================================================= */
 
-:root {
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
 
-  color: #171717;
-  background: #f8fafc;
+  /* Page surfaces */
+  --page-bg: #f7f2ff;
+  --page-bg-secondary: #efe7ff;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-solid: #ffffff;
+  --surface-hover: #f1e8ff;
+
+  /* Text */
+  --text-primary: #281442;
+  --text-secondary: #746487;
+  --text-muted: #9385a5;
+
+  /* Neon purple accents */
+  --accent: #8b5cf6;
+  --accent-strong: #7c3aed;
+  --accent-light: #ede9fe;
+  --accent-pink: #d946ef;
+
+  /* Borders and effects */
+  --border-color: rgba(139, 92, 246, 0.20);
+  --border-glow: rgba(139, 92, 246, 0.34);
+  --focus-ring: rgba(139, 92, 246, 0.30);
+  --shadow-color: rgba(91, 33, 182, 0.10);
+  --glass-blur: 20px;
+
+  /* Form elements */
+  --input-bg: rgba(255, 255, 255, 0.88);
+  --input-border: #ded2f3;
+  --placeholder-color: #9b8caf;
+
+  /* Feedback */
+  --success-bg: #dcfce7;
+  --success-text: #166534;
+  --error-bg: #fee2e2;
+  --error-text: #b91c1c;
+
+  /* Scrollbar */
+  --scrollbar-track: #f1eafe;
+  --scrollbar-thumb: #c4b5fd;
+
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/**
- * Make sizing predictable throughout the application.
- */
+/* =========================================================
+   DARK THEME
+========================================================= */
 
-* {
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page-bg: #130b20;
+  --page-bg-secondary: #1c1030;
+  --surface: rgba(36, 20, 59, 0.84);
+  --surface-solid: #24143b;
+  --surface-hover: #35204f;
+
+  --text-primary: #f5edff;
+  --text-secondary: #c0afd5;
+  --text-muted: #a18dbb;
+
+  --accent: #c084fc;
+  --accent-strong: #a855f7;
+  --accent-light: #3b205a;
+  --accent-pink: #e879f9;
+
+  --border-color: rgba(168, 85, 247, 0.25);
+  --border-glow: rgba(168, 85, 247, 0.48);
+  --focus-ring: rgba(192, 132, 252, 0.38);
+  --shadow-color: rgba(0, 0, 0, 0.28);
+  --glass-blur: 20px;
+
+  --input-bg: rgba(27, 15, 44, 0.92);
+  --input-border: #543775;
+  --placeholder-color: #a18dbb;
+
+  --success-bg: #123d2b;
+  --success-text: #86efac;
+  --error-bg: #451a24;
+  --error-text: #fca5a5;
+
+  --scrollbar-track: #1c1030;
+  --scrollbar-thumb: #6d28a8;
+}
+
+/* =========================================================
+   GLOBAL RESET
+========================================================= */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-/**
- * Remove default browser margin.
- */
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--page-bg);
+  scroll-behavior: smooth;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+
+  color: var(--text-primary);
+  background:
+    radial-gradient(
+      circle at 10% 0%,
+      rgba(168, 85, 247, 0.09),
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at 100% 80%,
+      rgba(217, 70, 239, 0.05),
+      transparent 32%
+    ),
+    var(--page-bg);
+
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
 
-/**
- * Make images responsive.
- */
+#root {
+  min-height: 100vh;
+  isolation: isolate;
+}
 
-img {
-  max-width: 100%;
+img,
+picture,
+video,
+canvas,
+svg {
   display: block;
+
 }
 
-/**
- * Make buttons and inputs inherit our application's font.
- */
+img,
+video {
+
+}
 
 button,
 input,
 textarea,
 select {
   font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+a {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+::selection {
+  color: #ffffff;
+  background: #8b5cf6;
+}
+
+/* =========================================================
+   ACCESSIBLE FOCUS STATES
+========================================================= */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* =========================================================
+   FORM CONTROLS
+========================================================= */
+
+input,
+textarea,
+select {
+  color: var(--text-primary);
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--placeholder-color);
+  opacity: 1;
+}
+
+select option {
+  color: var(--text-primary);
+  background: var(--surface-solid);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* =========================================================
+   REUSABLE GLASSMORPHISM SURFACES
+========================================================= */
+
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 1.25rem;
+
+  box-shadow: 0 8px 30px var(--shadow-color);
+
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.glass-card:hover {
+  border-color: var(--border-glow);
+}
+
+.glass-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-color);
+
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.glass-input {
+  width: 100%;
+  color: var(--text-primary);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 0.875rem;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.glass-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* =========================================================
+   NEON PURPLE ACCENTS
+========================================================= */
+
+.neon-button {
+  color: #ffffff;
+  background: linear-gradient(
+    135deg,
+    #8b5cf6 0%,
+    #7c3aed 50%,
+    #c026d3 100%
+  );
+
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 0.875rem;
+
+  box-shadow: 0 5px 20px rgba(139, 92, 246, 0.28);
+
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+.neon-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 6px 24px rgba(139, 92, 246, 0.42),
+    0 0 14px rgba(192, 132, 252, 0.18);
+  filter: brightness(1.06);
+}
+
+.neon-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.neon-glow {
+  box-shadow:
+    0 0 12px rgba(139, 92, 246, 0.24),
+    0 0 30px rgba(168, 85, 247, 0.12);
+}
+
+/* =========================================================
+   THEME-AWARE TEXT UTILITIES
+========================================================= */
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.surface {
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.surface-solid {
+  color: var(--text-primary);
+  background: var(--surface-solid);
+}
+
+.theme-border {
+  border-color: var(--border-color);
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* =========================================================
+   REDUCED MOTION ACCESSIBILITY
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -15,6 +15,7 @@ import "./index.css";
 import App from "./App.jsx";
 
 import { AuthProvider } from "./contexts/AuthContext.jsx";
+import { ThemeProvider } from "./contexts/ThemeContext.jsx";
 
 
 /**
@@ -37,11 +38,15 @@ createRoot(rootElement).render(
   <StrictMode>
 
     <AuthProvider>
+      <ThemeProvider>
 
       <App />
+
+      </ThemeProvider>
 
     </AuthProvider>
 
   </StrictMode>
 
 );
+      

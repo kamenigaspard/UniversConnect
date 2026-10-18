@@ -1,20 +1,3 @@
-// ============================================================
-// ProfilePage.jsx
-// ------------------------------------------------------------
-// This page displays the currently logged-in user's profile.
-// Users can:
-//   - View their profile information
-//   - View their school
-//   - View their role
-//   - Change their username
-//   - Change their bio
-//   - Upload/change their profile picture
-//
-// Important:
-// Role and school are displayed but are NOT editable here.
-// This prevents ordinary users from changing their privileges
-// or moving themselves to another school.
-// ============================================================
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -27,128 +10,120 @@ import {
   Shield,
   User,
   X,
+  Sparkles,
 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
+// ============================================================
+// Reusable glass styles
+// ============================================================
+
+const glassCard =
+  "rounded-3xl border border-white/80 bg-white/75 shadow-[0_12px_40px_rgba(91,33,182,0.08)] backdrop-blur-2xl";
+
+const inputBase =
+  "w-full rounded-xl border border-violet-100 bg-white/75 px-4 py-3 text-sm text-slate-800 outline-none transition duration-200 placeholder:text-slate-400 focus:border-violet-400 focus:ring-4 focus:ring-violet-100/80 disabled:cursor-not-allowed disabled:border-violet-100/60 disabled:bg-violet-50/50 disabled:text-slate-500";
+
+const primaryButton =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_5px_18px_rgba(139,92,246,0.28)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0";
 
 // ============================================================
-// ProfilePage component
+// ProfilePage
 // ============================================================
 
 export default function ProfilePage() {
-
-  // ----------------------------------------------------------
-  // Get the authenticated user and profile from AuthContext.
-  // ----------------------------------------------------------
   const { user, profile, setProfile } = useAuth();
 
-
-  // ----------------------------------------------------------
-  // Local form state.
-  // These values are initialized after the profile is loaded.
-  // ----------------------------------------------------------
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
 
-
-  // ----------------------------------------------------------
-  // School information.
-  // ----------------------------------------------------------
   const [school, setSchool] = useState(null);
 
-
-  // ----------------------------------------------------------
-  // Edit mode controls whether the form can be modified.
-  // ----------------------------------------------------------
   const [isEditing, setIsEditing] = useState(false);
 
-
-  // ----------------------------------------------------------
-  // Loading states.
-  // ----------------------------------------------------------
   const [loadingSchool, setLoadingSchool] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-
-  // ----------------------------------------------------------
-  // Message shown to the user after an operation.
-  // ----------------------------------------------------------
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-
-  // ----------------------------------------------------------
-  // Reference to the hidden file input.
-  // ----------------------------------------------------------
   const fileInputRef = useRef(null);
 
-
   // ==========================================================
-  // Load profile information into the form.
+  // Populate the form when the profile changes.
   // ==========================================================
 
   useEffect(() => {
-
     if (!profile) return;
 
     setFullName(profile.full_name || "");
     setUsername(profile.username || "");
     setBio(profile.bio || "");
-
   }, [profile]);
 
-
   // ==========================================================
-  // Load the school belonging to the current user.
+  // Load the user's school.
   // ==========================================================
 
   useEffect(() => {
+    let isMounted = true;
 
     const loadSchool = async () => {
-
-      // No school means there is nothing to load.
       if (!profile?.school_id) {
         setSchool(null);
+        setLoadingSchool(false);
         return;
       }
 
       setLoadingSchool(true);
 
-      const { data, error } = await supabase
-        .from("schools")
-        .select("id, name, code, logo_url, description")
-        .eq("id", profile.school_id)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("schools")
+          .select("id, name, code, logo_url, description")
+          .eq("id", profile.school_id)
+          .single();
 
-      if (error) {
-        console.error("Error loading school:", error);
-        setSchool(null);
-      } else {
-        setSchool(data);
+        if (error) throw error;
+
+        if (isMounted) {
+          setSchool(data);
+        }
+      } catch (err) {
+        console.error("Error loading school:", err);
+
+        if (isMounted) {
+          setSchool(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingSchool(false);
+        }
       }
-
-      setLoadingSchool(false);
     };
 
     loadSchool();
 
+    return () => {
+      isMounted = false;
+    };
   }, [profile?.school_id]);
 
-
   // ==========================================================
-  // Helper: convert role into a friendly display name.
+  // Friendly role names.
   // ==========================================================
 
   const getRoleName = (role) => {
-
     switch (role) {
-
       case "student":
         return "Student";
+
+      case "lecturer":
+        return "Lecturer";
 
       case "teacher":
         return "Teacher";
@@ -164,90 +139,52 @@ export default function ProfilePage() {
     }
   };
 
-
   // ==========================================================
-  // Open the file selector.
+  // Open the image selector.
   // ==========================================================
 
   const handleChoosePhoto = () => {
-
-    if (!isEditing) return;
+    if (!isEditing || uploadingPhoto) return;
 
     fileInputRef.current?.click();
   };
-
 
   // ==========================================================
   // Upload a new profile picture.
   // ==========================================================
 
   const handlePhotoChange = async (event) => {
-
     const file = event.target.files?.[0];
 
-    // No file selected.
     if (!file) return;
 
-
-    // --------------------------------------------------------
-    // Make sure the selected file is actually an image.
-    // --------------------------------------------------------
-
     if (!file.type.startsWith("image/")) {
-
       setError("Please select an image file.");
-
+      event.target.value = "";
       return;
     }
-
-
-    // --------------------------------------------------------
-    // Limit profile images to 5 MB.
-    // --------------------------------------------------------
 
     if (file.size > 5 * 1024 * 1024) {
-
       setError("Profile image must be smaller than 5 MB.");
-
+      event.target.value = "";
       return;
     }
 
+    if (!user?.id) {
+      setError("You must be logged in to update your profile photo.");
+      event.target.value = "";
+      return;
+    }
 
-    // Clear previous messages.
     setError("");
     setMessage("");
     setUploadingPhoto(true);
 
-
     try {
-
-      // ------------------------------------------------------
-      // Create a unique filename.
-      // ------------------------------------------------------
-
       const extension = file.name.split(".").pop();
 
-      const fileName =
-        `avatar_${Date.now()}.${extension}`;
-
-
-      // ------------------------------------------------------
-      // IMPORTANT:
-      // We store the image inside the user's own folder.
-      //
-      // Example:
-      //
-      // USER_ID/avatar_123456789.jpg
-      //
-      // This matches the storage policy structure we created.
-      // ------------------------------------------------------
-
+      const fileName = `avatar_${Date.now()}.${extension}`;
       const filePath = `${user.id}/${fileName}`;
-
-
-      // ------------------------------------------------------
-      // Upload the image to Supabase Storage.
-      // ------------------------------------------------------
 
       const { error: uploadError } = await supabase.storage
         .from("profile-media")
@@ -256,159 +193,98 @@ export default function ProfilePage() {
           upsert: false,
         });
 
-
       if (uploadError) {
         throw uploadError;
       }
-
-
-      // ------------------------------------------------------
-      // Get the public URL of the uploaded image.
-      // ------------------------------------------------------
 
       const { data: publicUrlData } = supabase.storage
         .from("profile-media")
         .getPublicUrl(filePath);
 
-
       const publicUrl = publicUrlData.publicUrl;
 
-
-      // ------------------------------------------------------
-      // Save the image URL inside profiles.avatar_url.
-      // ------------------------------------------------------
-
-      const { data: updatedProfile, error: updateError } =
-        await supabase
-          .from("profiles")
-          .update({
-            avatar_url: publicUrl,
-          })
-          .eq("id", user.id)
-          .select()
-          .single();
-
+      const {
+        data: updatedProfile,
+        error: updateError,
+      } = await supabase
+        .from("profiles")
+        .update({
+          avatar_url: publicUrl,
+        })
+        .eq("id", user.id)
+        .select()
+        .single();
 
       if (updateError) {
         throw updateError;
       }
 
-
-      // ------------------------------------------------------
-      // Update AuthContext so the new image appears everywhere
-      // without requiring the user to log out and log in.
-      // ------------------------------------------------------
-
       if (setProfile) {
         setProfile(updatedProfile);
       }
 
-
       setMessage("Profile photo updated successfully.");
-
     } catch (err) {
-
       console.error("Profile photo upload error:", err);
 
-      setError(
-        err.message || "Unable to update profile photo."
-      );
-
+      setError(err.message || "Unable to update profile photo.");
     } finally {
-
       setUploadingPhoto(false);
-
-      // Reset file input so selecting the same image again
-      // will trigger the change event.
       event.target.value = "";
     }
   };
-
 
   // ==========================================================
   // Save profile information.
   // ==========================================================
 
   const handleSave = async () => {
-
-    // --------------------------------------------------------
-    // Basic validation.
-    // --------------------------------------------------------
-
     if (!fullName.trim()) {
-
       setError("Full name cannot be empty.");
-
       return;
     }
-
 
     if (!username.trim()) {
-
       setError("Username cannot be empty.");
-
       return;
     }
 
-
-    // --------------------------------------------------------
-    // Username validation.
-    //
-    // We use the same rule as signup:
-    // letters, numbers and underscore only.
-    // --------------------------------------------------------
-
     const usernameRegex = /^[a-z0-9_]+$/;
-
-    const cleanUsername =
-      username.trim().toLowerCase();
-
+    const cleanUsername = username.trim().toLowerCase();
 
     if (!usernameRegex.test(cleanUsername)) {
-
       setError(
         "Username can only contain lowercase letters, numbers and underscores."
       );
-
       return;
     }
 
-
-    // --------------------------------------------------------
-    // Clear old messages.
-    // --------------------------------------------------------
+    if (!user?.id) {
+      setError("You must be logged in to update your profile.");
+      return;
+    }
 
     setError("");
     setMessage("");
     setSaving(true);
 
-
     try {
-
-      // ------------------------------------------------------
-      // Update only fields that users are allowed to modify.
-      //
-      // Notice that role and school_id are NOT included.
-      // ------------------------------------------------------
-
-      const { data: updatedProfile, error: updateError } =
-        await supabase
-          .from("profiles")
-          .update({
-            full_name: fullName.trim(),
-            username: cleanUsername,
-            bio: bio.trim() || null,
-          })
-          .eq("id", user.id)
-          .select()
-          .single();
-
+      const {
+        data: updatedProfile,
+        error: updateError,
+      } = await supabase
+        .from("profiles")
+        .update({
+          full_name: fullName.trim(),
+          username: cleanUsername,
+          bio: bio.trim() || null,
+        })
+        .eq("id", user.id)
+        .select()
+        .single();
 
       if (updateError) {
-
-        // Username already exists.
         if (updateError.code === "23505") {
-
           throw new Error(
             "That username is already taken. Please choose another one."
           );
@@ -417,48 +293,30 @@ export default function ProfilePage() {
         throw updateError;
       }
 
-
-      // ------------------------------------------------------
-      // Update the global profile state.
-      // ------------------------------------------------------
-
       if (setProfile) {
         setProfile(updatedProfile);
       }
 
-
-      // ------------------------------------------------------
-      // Update the local username state with the cleaned value.
-      // ------------------------------------------------------
-
+      setFullName(updatedProfile.full_name || "");
       setUsername(updatedProfile.username || "");
+      setBio(updatedProfile.bio || "");
 
       setMessage("Profile updated successfully.");
-
       setIsEditing(false);
-
     } catch (err) {
-
       console.error("Profile update error:", err);
 
-      setError(
-        err.message || "Unable to update your profile."
-      );
-
+      setError(err.message || "Unable to update your profile.");
     } finally {
-
       setSaving(false);
     }
   };
-
 
   // ==========================================================
   // Cancel editing.
   // ==========================================================
 
   const handleCancel = () => {
-
-    // Restore original profile values.
     setFullName(profile?.full_name || "");
     setUsername(profile?.username || "");
     setBio(profile?.bio || "");
@@ -469,177 +327,151 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
-
   // ==========================================================
   // Loading state.
   // ==========================================================
 
   if (!profile) {
-
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f8f5ff]">
+        <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-violet-300/30 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -right-20 h-72 w-72 rounded-full bg-fuchsia-300/25 blur-3xl" />
+
+        <div className="relative flex flex-col items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white bg-white/70 shadow-[0_0_35px_rgba(139,92,246,0.22)] backdrop-blur-xl">
+            <Loader2 size={30} className="animate-spin text-violet-600" />
+          </div>
+
+          <p className="text-sm font-medium text-violet-700">
+            Loading your profile...
+          </p>
+        </div>
       </div>
     );
   }
-
 
   // ==========================================================
   // Main UI.
   // ==========================================================
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-6">
+    <div className="relative min-h-screen overflow-x-clip bg-[#f8f5ff] px-4 py-6 pb-12 text-slate-800 sm:py-9">
+      {/* Ambient background glow */}
+      <div className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
+        <div className="absolute -left-32 top-20 h-80 w-80 rounded-full bg-violet-300/20 blur-[100px]" />
+        <div className="absolute -right-32 top-[35%] h-96 w-96 rounded-full bg-fuchsia-300/20 blur-[120px]" />
+        <div className="absolute bottom-0 left-[30%] h-72 w-72 rounded-full bg-indigo-300/15 blur-[100px]" />
+      </div>
 
-      <div className="max-w-3xl mx-auto">
-
-        {/* ====================================================
-            PAGE HEADER
-        ==================================================== */}
-
-        <div className="flex items-center justify-between mb-6">
-
+      <div className="relative z-10 mx-auto max-w-3xl">
+        {/* Page heading */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white/70 px-3 py-1.5 text-xs font-semibold text-violet-700 shadow-sm backdrop-blur-xl">
+              <Sparkles size={14} />
+              Your UniVerse identity
+            </div>
+
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
               My Profile
             </h1>
 
-            <p className="text-sm text-gray-500 mt-1">
-              Manage your profile information
+            <p className="mt-1.5 text-sm text-slate-500">
+              Manage your personal information and how others see you.
             </p>
           </div>
 
-
           {!isEditing ? (
-
             <button
+              type="button"
               onClick={() => {
                 setError("");
                 setMessage("");
                 setIsEditing(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black text-white hover:bg-gray-800 transition"
+              className={primaryButton}
             >
               <Pencil size={17} />
-
-              Edit
+              Edit profile
             </button>
-
           ) : (
-
-            <div className="flex gap-2">
-
+            <div className="flex flex-wrap gap-2">
               <button
+                type="button"
                 onClick={handleCancel}
                 disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-100 transition"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm backdrop-blur-xl transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50"
               >
                 <X size={17} />
-
                 Cancel
               </button>
 
-
               <button
+                type="button"
                 onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black text-white hover:bg-gray-800 transition disabled:opacity-50"
+                disabled={saving || uploadingPhoto}
+                className={primaryButton}
               >
-
                 {saving ? (
-                  <Loader2
-                    size={17}
-                    className="animate-spin"
-                  />
+                  <Loader2 size={17} className="animate-spin" />
                 ) : (
                   <Check size={17} />
                 )}
-
-                Save
+                {saving ? "Saving..." : "Save changes"}
               </button>
-
             </div>
           )}
-
         </div>
 
-
-        {/* ====================================================
-            SUCCESS MESSAGE
-        ==================================================== */}
-
+        {/* Success message */}
         {message && (
-
-          <div className="mb-4 flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-green-700">
-
-            <Check size={18} />
-
-            {message}
-
+          <div
+            role="status"
+            className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3.5 text-sm text-emerald-800 shadow-sm backdrop-blur-xl"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
+              <Check size={17} />
+            </span>
+            <p className="pt-1">{message}</p>
           </div>
         )}
 
-
-        {/* ====================================================
-            ERROR MESSAGE
-        ==================================================== */}
-
+        {/* Error message */}
         {error && (
-
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-700">
-
-            {error}
-
+          <div
+            role="alert"
+            className="mb-5 flex items-start gap-3 rounded-2xl border border-rose-200/80 bg-rose-50/90 px-4 py-3.5 text-sm text-rose-800 shadow-sm backdrop-blur-xl"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-rose-100">
+              <X size={17} />
+            </span>
+            <p className="pt-1">{error}</p>
           </div>
         )}
 
+        {/* Main profile card */}
+        <div className={`${glassCard} overflow-hidden`}>
+          {/* Profile hero */}
+          <div className="relative overflow-hidden border-b border-violet-100/80 bg-gradient-to-br from-violet-100/80 via-white/80 to-fuchsia-100/70 px-5 py-8 sm:px-8 sm:py-10">
+            <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-fuchsia-300/25 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-20 left-1/4 h-40 w-40 rounded-full bg-violet-300/25 blur-3xl" />
 
-        {/* ====================================================
-            PROFILE CARD
-        ==================================================== */}
-
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-
-
-          {/* ==================================================
-              PROFILE HEADER
-          ================================================== */}
-
-          <div className="p-6 sm:p-8">
-
-
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-
-
-              {/* =================================================
-                  PROFILE PHOTO
-              ================================================= */}
-
-              <div className="relative">
-
-                <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 border-4 border-white shadow-lg flex items-center justify-center">
-
-                  {profile.avatar_url ? (
-
-                    <img
-                      src={profile.avatar_url}
-                      alt={profile.full_name}
-                      className="w-full h-full object-cover"
-                    />
-
-                  ) : (
-
-                    <User
-                      size={55}
-                      className="text-gray-400"
-                    />
-
-                  )}
-
+            <div className="relative flex flex-col items-center gap-6 sm:flex-row">
+              {/* Profile photo */}
+              <div className="relative shrink-0">
+                <div className="rounded-full bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 p-[3px] shadow-[0_0_35px_rgba(139,92,246,0.3)]">
+                  <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-gradient-to-br from-violet-100 to-fuchsia-100">
+                    {profile.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.full_name || "Profile photo"}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User size={55} className="text-violet-400" />
+                    )}
+                  </div>
                 </div>
-
-
-                {/* Hidden file input */}
 
                 <input
                   ref={fileInputRef}
@@ -649,320 +481,305 @@ export default function ProfilePage() {
                   className="hidden"
                 />
 
-
-                {/* Camera button */}
-
                 {isEditing && (
-
                   <button
                     type="button"
                     onClick={handleChoosePhoto}
                     disabled={uploadingPhoto}
-                    className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-black text-white flex items-center justify-center shadow-lg hover:bg-gray-800 transition disabled:opacity-50"
+                    className="absolute bottom-0 right-0 flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-white bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-[0_5px_18px_rgba(139,92,246,0.4)] transition hover:scale-105 hover:shadow-[0_0_24px_rgba(168,85,247,0.5)] disabled:opacity-60"
                     title="Change profile photo"
+                    aria-label="Change profile photo"
                   >
-
                     {uploadingPhoto ? (
-
-                      <Loader2
-                        size={18}
-                        className="animate-spin"
-                      />
-
+                      <Loader2 size={19} className="animate-spin" />
                     ) : (
-
-                      <Camera size={18} />
-
+                      <Camera size={19} />
                     )}
-
                   </button>
-
                 )}
-
               </div>
 
-
-              {/* =================================================
-                  BASIC PROFILE SUMMARY
-              ================================================= */}
-
-              <div className="text-center sm:text-left">
-
-                <h2 className="text-2xl font-bold text-gray-900">
-
-                  {profile.full_name}
-
-                </h2>
-
-
-                <p className="text-gray-500 mt-1">
-
-                  @{profile.username || "username"}
-
-                </p>
-
-
-                <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full bg-gray-100 text-sm font-medium">
-
-                  <Shield size={15} />
-
-                  {getRoleName(profile.role)}
-
+              {/* Profile summary */}
+              <div className="min-w-0 flex-1 text-center sm:text-left">
+                <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-violet-200/80 bg-white/75 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-violet-700 shadow-sm backdrop-blur">
+                  <Sparkles size={12} />
+                  UniVerse member
                 </div>
 
+                <h2 className="break-words text-2xl font-bold tracking-tight text-slate-900">
+                  {profile.full_name || "Your name"}
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  @{profile.username || "username"}
+                </p>
+
+                <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-violet-200/80 bg-white/75 px-3 py-2 text-sm font-semibold text-violet-700 shadow-sm backdrop-blur-xl">
+                    <Shield size={15} />
+                    {getRoleName(profile.role)}
+                  </span>
+
+                  {school?.code && (
+                    <span className="inline-flex items-center gap-2 rounded-xl border border-fuchsia-200/80 bg-white/75 px-3 py-2 text-sm font-semibold text-fuchsia-700 shadow-sm backdrop-blur-xl">
+                      <School size={15} />
+                      {school.code}
+                    </span>
+                  )}
+                </div>
               </div>
-
             </div>
-
           </div>
 
-
-          {/* ==================================================
-              PROFILE INFORMATION
-          ================================================== */}
-
-          <div className="border-t border-gray-200 p-6 sm:p-8">
+          {/* Profile information */}
+          <div className="p-5 sm:p-8">
+            <div className="mb-6">
+              <h3 className="text-base font-bold text-slate-900">
+                Personal information
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {isEditing
+                  ? "Update your details, then save your changes."
+                  : "Your profile details and university affiliation."}
+              </p>
+            </div>
 
             <div className="space-y-6">
-
-
-              {/* =================================================
-                  FULL NAME
-              ================================================= */}
-
+              {/* Full name */}
               <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-
-                  Full Name
-
+                <label
+                  htmlFor="profile-full-name"
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
+                  Full name
                 </label>
 
                 <input
+                  id="profile-full-name"
                   type="text"
                   value={fullName}
-                  onChange={(e) =>
-                    setFullName(e.target.value)
-                  }
-                  disabled={!isEditing}
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500"
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={!isEditing || saving}
+                  autoComplete="name"
+                  className={inputBase}
+                  placeholder="Enter your full name"
                 />
-
               </div>
 
-
-              {/* =================================================
-                  USERNAME
-              ================================================= */}
-
+              {/* Username */}
               <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-
+                <label
+                  htmlFor="profile-username"
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
                   Username
-
                 </label>
 
                 <div className="relative">
-
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-violet-500">
                     @
                   </span>
 
                   <input
+                    id="profile-username"
                     type="text"
                     value={username}
                     onChange={(e) =>
                       setUsername(
-                        e.target.value
-                          .toLowerCase()
-                          .replace(/\s/g, "")
+                        e.target.value.toLowerCase().replace(/\s/g, "")
                       )
                     }
-                    disabled={!isEditing}
-                    className="w-full rounded-xl border border-gray-300 pl-9 pr-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500"
+                    disabled={!isEditing || saving}
+                    autoComplete="username"
+                    className={`${inputBase} pl-9`}
+                    placeholder="your_username"
                   />
-
                 </div>
 
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Use lowercase letters, numbers, and underscores.
+                </p>
               </div>
 
-
-              {/* =================================================
-                  EMAIL
-              ================================================= */}
-
+              {/* Email */}
               <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-
-                  Email
-
+                <label
+                  htmlFor="profile-email"
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
+                  Email address
                 </label>
 
                 <div className="relative">
-
                   <Mail
                     size={18}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-violet-400"
                   />
 
                   <input
+                    id="profile-email"
                     type="email"
-                    value={profile.email || user.email || ""}
+                    value={profile.email || user?.email || ""}
                     disabled
-                    className="w-full rounded-xl border border-gray-300 pl-11 pr-4 py-3 bg-gray-100 text-gray-500"
+                    className={`${inputBase} bg-violet-50/60 pl-11`}
                   />
-
                 </div>
 
+                <p className="mt-1.5 text-xs text-slate-400">
+                  Your email address cannot be changed here.
+                </p>
               </div>
 
-
-              {/* =================================================
-                  BIO
-              ================================================= */}
-
+              {/* Bio */}
               <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="profile-bio"
+                    className="block text-sm font-semibold text-slate-700"
+                  >
+                    Bio
+                  </label>
 
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-
-                  Bio
-
-                </label>
+                  {isEditing && (
+                    <span className="text-xs font-medium text-violet-500">
+                      {bio.length}/500
+                    </span>
+                  )}
+                </div>
 
                 <textarea
+                  id="profile-bio"
                   value={bio}
-                  onChange={(e) =>
-                    setBio(e.target.value)
-                  }
-                  disabled={!isEditing}
+                  onChange={(e) => setBio(e.target.value)}
+                  disabled={!isEditing || saving}
                   rows={4}
                   maxLength={500}
                   placeholder="Tell people something about yourself..."
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100 disabled:text-gray-500 resize-none"
+                  className={`${inputBase} resize-none leading-6`}
                 />
-
-                {isEditing && (
-
-                  <p className="text-xs text-gray-400 mt-1 text-right">
-
-                    {bio.length}/500
-
-                  </p>
-
-                )}
-
               </div>
 
-
-              {/* =================================================
-                  SCHOOL
-              ================================================= */}
-
+              {/* School */}
               <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
                   School
-
                 </label>
 
-                <div className="flex items-center gap-3 rounded-xl border border-gray-300 px-4 py-3 bg-gray-100">
-
-                  {loadingSchool ? (
-
-                    <Loader2
-                      size={18}
-                      className="animate-spin text-gray-400"
-                    />
-
-                  ) : school?.logo_url ? (
-
-                    <img
-                      src={school.logo_url}
-                      alt={school.name}
-                      className="w-9 h-9 rounded-lg object-contain bg-white"
-                    />
-
-                  ) : (
-
-                    <School
-                      size={20}
-                      className="text-gray-400"
-                    />
-
-                  )}
-
-
-                  <div>
-
-                    <p className="font-medium text-gray-700">
-
-                      {school?.name || "No school assigned"}
-
-                    </p>
-
-                    {school?.code && (
-
-                      <p className="text-xs text-gray-500">
-
-                        {school.code}
-
-                      </p>
-
+                <div className="flex items-center gap-3 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50/80 to-fuchsia-50/60 px-4 py-3.5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white bg-white shadow-sm">
+                    {loadingSchool ? (
+                      <Loader2
+                        size={19}
+                        className="animate-spin text-violet-500"
+                      />
+                    ) : school?.logo_url ? (
+                      <img
+                        src={school.logo_url}
+                        alt={school.name || "School logo"}
+                        className="h-full w-full object-contain p-1"
+                      />
+                    ) : (
+                      <School size={21} className="text-violet-400" />
                     )}
-
                   </div>
 
-                </div>
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-slate-800">
+                      {loadingSchool
+                        ? "Loading school..."
+                        : school?.name || "No school assigned"}
+                    </p>
 
-              </div>
-
-
-              {/* =================================================
-                  ROLE
-              ================================================= */}
-
-              <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-
-                  Account Role
-
-                </label>
-
-                <div className="flex items-center gap-3 rounded-xl border border-gray-300 px-4 py-3 bg-gray-100">
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {school?.code || "University affiliation"}
+                    </p>
+                  </div>
 
                   <Shield
-                    size={20}
-                    className="text-gray-400"
+                    size={17}
+                    className="ml-auto shrink-0 text-violet-400"
                   />
-
-                  <span className="font-medium text-gray-700">
-
-                    {getRoleName(profile.role)}
-
-                  </span>
-
                 </div>
-
-                <p className="text-xs text-gray-500 mt-2">
-
-                  Your role is managed by the university administration.
-
-                </p>
-
               </div>
 
+              {/* Account role */}
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Account role
+                </label>
+
+                <div className="flex items-center gap-3 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50/80 to-fuchsia-50/60 px-4 py-3.5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white bg-white text-violet-600 shadow-sm">
+                    <Shield size={21} />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {getRoleName(profile.role)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Managed by university administration
+                    </p>
+                  </div>
+
+                  <div className="ml-auto rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                    Protected
+                  </div>
+                </div>
+
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  Your role and school assignment are read-only to prevent
+                  unauthorized privilege changes.
+                </p>
+              </div>
             </div>
 
-          </div>
+            {/* Editing footer */}
+            {isEditing && (
+              <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-violet-100 bg-gradient-to-r from-violet-50/80 to-fuchsia-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs leading-5 text-slate-500">
+                  Your role and school cannot be edited from this page.
+                </p>
 
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={saving || uploadingPhoto}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white/80 px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white disabled:opacity-50"
+                  >
+                    <X size={16} />
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving || uploadingPhoto}
+                    className={primaryButton}
+                  >
+                    {saving ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Check size={16} />
+                    )}
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
+        {/* Privacy note */}
+        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-white/80 bg-white/55 px-4 py-3.5 text-xs leading-5 text-slate-500 shadow-sm backdrop-blur-xl">
+          <Shield size={17} className="mt-0.5 shrink-0 text-violet-500" />
+          <p>
+            Your school and account role are protected. Only your permitted
+            profile fields can be edited from this page.
+          </p>
+        </div>
       </div>
-
     </div>
   );
 }

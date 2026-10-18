@@ -12,6 +12,7 @@ import {
   User,
   Users,
   Heart,
+  Settings,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -780,7 +781,7 @@ const TeacherHome = () => {
             { label: "Home", path: "/teacher-home", icon: Home },
             { label: "Search", path: "/search", icon: Search },
             { label: "Requests", path: "/requests", icon: Heart },
-            { label: "Profile", path: "/profile", icon: User },
+            { label: "Settings", path: "/settings", icon: Settings },
         ]}
         createPath="/create-post"
         />           

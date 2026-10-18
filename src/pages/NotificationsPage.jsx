@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   AlertCircle,
   Check,
+  Sparkles,
 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext";
@@ -47,23 +48,25 @@ const Notifications = () => {
     try {
       setError("");
 
-      const { data: notificationData, error: notificationError } =
-        await supabase
-          .from("notifications")
-          .select(`
-            id,
-            user_id,
-            actor_id,
-            type,
-            title,
-            body,
-            reference_id,
-            is_read,
-            created_at
-          `)
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(PAGE_SIZE);
+      const {
+        data: notificationData,
+        error: notificationError,
+      } = await supabase
+        .from("notifications")
+        .select(`
+          id,
+          user_id,
+          actor_id,
+          type,
+          title,
+          body,
+          reference_id,
+          is_read,
+          created_at
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE);
 
       if (notificationError) throw notificationError;
 
@@ -75,7 +78,10 @@ const Notifications = () => {
       let profilesById = {};
 
       if (actorIds.length > 0) {
-        const { data: actorProfiles, error: profileError } = await supabase
+        const {
+          data: actorProfiles,
+          error: profileError,
+        } = await supabase
           .from("profiles")
           .select("id, full_name, username, avatar_url, role")
           .in("id", actorIds);
@@ -83,7 +89,10 @@ const Notifications = () => {
         if (profileError) throw profileError;
 
         profilesById = Object.fromEntries(
-          (actorProfiles || []).map((profile) => [profile.id, profile])
+          (actorProfiles || []).map((profile) => [
+            profile.id,
+            profile,
+          ])
         );
       }
 
@@ -100,6 +109,10 @@ const Notifications = () => {
       setLoading(false);
     }
   }, [user?.id]);
+
+  // ==========================================================
+  // INITIAL LOAD AND REALTIME UPDATES
+  // ==========================================================
 
   useEffect(() => {
     if (!user?.id) {
@@ -122,7 +135,6 @@ const Notifications = () => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          // Reload rows and actor profiles after a notification change.
           loadNotifications();
         }
       )
@@ -142,7 +154,13 @@ const Notifications = () => {
   // ==========================================================
 
   const markAsRead = async (notification) => {
-    if (notification.is_read || updatingId === notification.id) return;
+    if (
+      notification.is_read ||
+      updatingId === notification.id ||
+      !user?.id
+    ) {
+      return;
+    }
 
     setUpdatingId(notification.id);
 
@@ -189,7 +207,10 @@ const Notifications = () => {
       if (updateError) throw updateError;
 
       setNotifications((previous) =>
-        previous.map((item) => ({ ...item, is_read: true }))
+        previous.map((item) => ({
+          ...item,
+          is_read: true,
+        }))
       );
     } catch (err) {
       console.error("Error marking all notifications as read:", err);
@@ -206,25 +227,25 @@ const Notifications = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case "like":
-        return <Heart size={19} className="text-pink-600" />;
+        return <Heart size={18} className="text-pink-600" />;
 
       case "comment":
-        return <MessageCircle size={19} className="text-blue-600" />;
+        return <MessageCircle size={18} className="text-blue-600" />;
 
       case "connection_request":
-        return <UserPlus size={19} className="text-purple-600" />;
+        return <UserPlus size={18} className="text-violet-600" />;
 
       case "message_request":
-        return <MessageSquare size={19} className="text-purple-600" />;
+        return <MessageSquare size={18} className="text-fuchsia-600" />;
 
       case "request_accepted":
-        return <Check size={19} className="text-green-600" />;
+        return <Check size={18} className="text-emerald-600" />;
 
       case "request_rejected":
-        return <AlertCircle size={19} className="text-orange-600" />;
+        return <AlertCircle size={18} className="text-orange-600" />;
 
       default:
-        return <Bell size={19} className="text-gray-500" />;
+        return <Bell size={18} className="text-violet-600" />;
     }
   };
 
@@ -238,7 +259,6 @@ const Notifications = () => {
     switch (notification.type) {
       case "like":
       case "comment":
-        // The reference is the post ID for these notification types.
         navigate("/student-home", {
           state: { postId: notification.reference_id },
         });
@@ -248,14 +268,12 @@ const Notifications = () => {
       case "message_request":
       case "request_accepted":
       case "request_rejected":
-        // The reference is the request ID for request notifications.
         navigate("/requests", {
           state: { requestId: notification.reference_id },
         });
         break;
 
       default:
-        // For notification types without a dedicated destination.
         break;
     }
   };
@@ -269,7 +287,10 @@ const Notifications = () => {
 
     const date = new Date(dateString);
     const now = new Date();
-    const seconds = Math.max(0, Math.floor((now - date) / 1000));
+    const seconds = Math.max(
+      0,
+      Math.floor((now - date) / 1000)
+    );
 
     if (seconds < 60) return "Just now";
 
@@ -285,9 +306,10 @@ const Notifications = () => {
     return date.toLocaleDateString(undefined, {
       day: "numeric",
       month: "short",
-      year: date.getFullYear() !== now.getFullYear()
-        ? "numeric"
-        : undefined,
+      year:
+        date.getFullYear() !== now.getFullYear()
+          ? "numeric"
+          : undefined,
     });
   };
 
@@ -296,24 +318,46 @@ const Notifications = () => {
   // ==========================================================
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
-      <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-3">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/70 pb-10">
+
+      {/* Ambient neon background */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed -left-28 top-28 h-80 w-80 rounded-full bg-violet-300/25 blur-3xl"
+      />
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed -right-24 top-80 h-72 w-72 rounded-full bg-fuchsia-300/20 blur-3xl"
+      />
+
+      {/* HEADER */}
+      <header className="sticky top-0 z-40 border-b border-white/70 bg-white/75 shadow-[0_4px_30px_rgba(109,40,217,0.07)] backdrop-blur-2xl">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-4">
+
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-100 bg-white/80 text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]"
               aria-label="Go back"
             >
-              <ArrowLeft size={21} />
+              <ArrowLeft size={20} />
             </button>
 
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">
-                Notifications
-              </h1>
-              <p className="text-xs text-gray-500">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="bg-gradient-to-r from-violet-950 via-purple-800 to-fuchsia-700 bg-clip-text text-lg font-extrabold tracking-tight text-transparent">
+                  Notifications
+                </h1>
+
+                <Sparkles
+                  size={16}
+                  className="text-fuchsia-500"
+                />
+              </div>
+
+              <p className="text-xs text-slate-500">
                 {unreadCount > 0
                   ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
                   : "You're all caught up"}
@@ -325,54 +369,98 @@ const Notifications = () => {
             type="button"
             onClick={markAllAsRead}
             disabled={unreadCount === 0 || markingAll}
-            className="flex items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium text-purple-600 transition hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-violet-100 bg-white/80 px-3 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {markingAll ? (
-              <LoaderCircle size={17} className="animate-spin" />
+              <LoaderCircle
+                size={17}
+                className="animate-spin"
+              />
             ) : (
               <CheckCheck size={18} />
             )}
-            <span className="hidden sm:inline">Mark all read</span>
+
+            <span className="hidden sm:inline">
+              Mark all read
+            </span>
           </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-3 py-4 sm:px-4">
+      {/* MAIN */}
+      <main className="relative z-10 mx-auto max-w-2xl px-3 py-5 sm:px-4">
+
+        {/* ERROR */}
         {error && (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-rose-200/80 bg-white/90 p-4 shadow-[0_8px_25px_rgba(225,29,72,0.07)] backdrop-blur-xl">
+            <p className="text-sm text-rose-700">
+              {error}
+            </p>
+
             <button
               type="button"
               onClick={loadNotifications}
-              className="shrink-0 text-sm font-semibold text-red-700 underline"
+              className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold text-rose-700 underline underline-offset-2 hover:bg-rose-50"
             >
               Retry
             </button>
           </div>
         )}
 
+        {/* LOADING */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-16">
-            <LoaderCircle size={30} className="animate-spin text-purple-600" />
-            <p className="mt-3 text-sm text-gray-500">
+          <div className="rounded-3xl border border-white/80 bg-white/75 py-16 text-center shadow-[0_16px_50px_rgba(91,33,182,0.1)] backdrop-blur-2xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-100 to-fuchsia-100 shadow-[0_0_30px_rgba(139,92,246,0.15)]">
+              <LoaderCircle
+                size={30}
+                className="animate-spin text-violet-600"
+              />
+            </div>
+
+            <p className="mt-4 text-sm font-medium text-slate-500">
               Loading notifications...
             </p>
           </div>
         ) : notifications.length === 0 ? (
-          <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-sm">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-purple-50">
-              <Bell size={29} className="text-purple-500" />
+
+          /* EMPTY STATE */
+          <div className="relative overflow-hidden rounded-3xl border border-white/80 bg-white/75 px-6 py-16 text-center shadow-[0_16px_50px_rgba(91,33,182,0.1)] backdrop-blur-2xl">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-fuchsia-300/20 blur-3xl"
+            />
+
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-100 via-purple-50 to-fuchsia-100 shadow-[0_0_35px_rgba(139,92,246,0.2)]">
+              <Bell
+                size={32}
+                className="text-violet-600"
+              />
             </div>
-            <h2 className="mt-4 text-base font-semibold text-gray-900">
+
+            <h2 className="mt-5 bg-gradient-to-r from-violet-900 to-fuchsia-700 bg-clip-text text-lg font-bold text-transparent">
               No notifications yet
             </h2>
-            <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-gray-500">
+
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-500">
               When someone likes or comments on your posts, or sends you a
               request, you'll see it here.
             </p>
           </div>
         ) : (
-          <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+
+          /* NOTIFICATION LIST */
+          <section className="overflow-hidden rounded-3xl border border-white/80 bg-white/70 shadow-[0_18px_60px_rgba(91,33,182,0.12)] backdrop-blur-2xl">
+
+            <div className="flex items-center justify-between border-b border-violet-100/80 bg-gradient-to-r from-violet-50/90 via-white/70 to-fuchsia-50/80 px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-800">
+                Recent activity
+              </p>
+
+              <span className="rounded-full border border-violet-100 bg-white/80 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                {notifications.length}
+              </span>
+            </div>
+
             {notifications.map((notification) => {
               const actor = notification.actor;
 
@@ -381,62 +469,79 @@ const Notifications = () => {
                   key={notification.id}
                   type="button"
                   onClick={() => openNotification(notification)}
-                  className={`flex w-full items-start gap-3 border-b border-gray-100 p-4 text-left transition last:border-b-0 hover:bg-gray-50 ${
-                    notification.is_read ? "bg-white" : "bg-purple-50/60"
+                  className={`group relative flex w-full items-start gap-3 border-b border-violet-100/70 p-4 text-left transition duration-200 last:border-b-0 hover:bg-violet-50/70 ${
+                    notification.is_read
+                      ? "bg-white/40"
+                      : "bg-gradient-to-r from-violet-100/60 via-purple-50/50 to-fuchsia-50/50"
                   }`}
                 >
-                  <div className="relative shrink-0">
+                  {!notification.is_read && (
+                    <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-gradient-to-b from-violet-500 to-fuchsia-500 shadow-[0_0_12px_rgba(168,85,247,0.55)]" />
+                  )}
+
+                  {/* ACTOR AVATAR */}
+                  <div className="relative ml-1 shrink-0">
                     {actor?.avatar_url ? (
                       <img
                         src={actor.avatar_url}
-                        alt={actor.full_name || actor.username || "User"}
-                        className="h-11 w-11 rounded-full object-cover"
+                        alt={
+                          actor.full_name ||
+                          actor.username ||
+                          "User"
+                        }
+                        className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-[0_0_0_2px_rgba(167,139,250,0.5),0_0_20px_rgba(168,85,247,0.15)]"
                       />
                     ) : (
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-violet-100 to-fuchsia-100 text-violet-600 shadow-[0_0_0_2px_rgba(167,139,250,0.4)]">
                         <UserPlus size={21} />
                       </div>
                     )}
 
-                    <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-white shadow-sm">
+                    {/* NOTIFICATION TYPE ICON */}
+                    <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-white shadow-[0_3px_12px_rgba(91,33,182,0.16)]">
                       {getNotificationIcon(notification.type)}
                     </span>
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-5 text-gray-800">
-                      <span className="font-semibold">
+                  {/* NOTIFICATION CONTENT */}
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <p className="text-sm leading-5 text-slate-800">
+                      <span className="font-bold text-violet-950">
                         {actor?.full_name ||
                           actor?.username ||
                           "Someone"}
                       </span>{" "}
-                      {notification.title || "sent you a notification"}
+                      <span>
+                        {notification.title ||
+                          "sent you a notification"}
+                      </span>
                     </p>
 
                     {notification.body && (
-                      <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                      <p className="mt-1.5 line-clamp-2 text-sm leading-5 text-slate-500">
                         {notification.body}
                       </p>
                     )}
 
-                    <p className="mt-1.5 text-xs text-gray-400">
+                    <p className="mt-2 text-xs font-medium text-slate-400">
                       {formatTime(notification.created_at)}
                     </p>
                   </div>
 
-                  {!notification.is_read && (
-                    <span
-                      className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-purple-600"
-                      aria-label="Unread"
-                    />
-                  )}
-
-                  {updatingId === notification.id && (
-                    <LoaderCircle
-                      size={15}
-                      className="mt-1 shrink-0 animate-spin text-purple-600"
-                    />
-                  )}
+                  {/* UNREAD INDICATOR / LOADING */}
+                  <div className="flex shrink-0 items-center pt-2">
+                    {updatingId === notification.id ? (
+                      <LoaderCircle
+                        size={16}
+                        className="animate-spin text-violet-600"
+                      />
+                    ) : !notification.is_read ? (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 shadow-[0_0_12px_rgba(168,85,247,0.55)]"
+                        aria-label="Unread"
+                      />
+                    ) : null}
+                  </div>
                 </button>
               );
             })}

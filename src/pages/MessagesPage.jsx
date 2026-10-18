@@ -1,11 +1,21 @@
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Edit3, MessageCircle, Sparkles, User } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Edit3,
+  MessageCircle,
+  Sparkles,
+  User,
+} from "lucide-react";
+
 import { useAuth } from "../contexts/AuthContext";
 import ConversationList from "../components/messages/CoversationList";
 import MessageList from "../components/messages/MessageList";
 import MessageComposer from "../components/messages/MessageComposer";
 import MessageRequestModal from "../components/messages/MessageRequestModal";
+
 import {
   getMessagingState,
   getMessagingProfile,
@@ -19,12 +29,18 @@ import {
   subscribeToConversationMessages,
   subscribeToUserConversations,
 } from "../services/messaging/messagingService";
-import { canRequestConnection, canRequestMessage } from "../services/messaging/messagingPermissions";
+
+import {
+  canRequestConnection,
+  canRequestMessage,
+} from "../services/messaging/messagingPermissions";
 
 export default function MessagesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+
   const currentUser = profile || user;
   const currentUserId = currentUser?.id;
 
@@ -50,115 +66,216 @@ export default function MessagesPage() {
   const [showConversation, setShowConversation] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
 
-  const findConversationWithUser = useCallback((list, targetUserId) => {
-    if (!targetUserId) return null;
-    return (list || []).find((c) => c?.otherUser?.id === targetUserId) || null;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const loadConversations = useCallback(async () => {
     if (!currentUserId) return [];
+
     try {
       setLoadingConversations(true);
+
       const data = await getUserConversations(currentUserId);
-      if (mountedRef.current) setConversations(Array.isArray(data) ? data : []);
-      return data;
+
+      if (mountedRef.current) {
+        setConversations(Array.isArray(data) ? data : []);
+      }
+
+      return data || [];
     } catch (err) {
-      if (mountedRef.current) setError(err?.message || "Unable to load conversations.");
+      if (mountedRef.current) {
+        setError(err?.message || "Unable to load conversations.");
+      }
+
       return [];
     } finally {
-      if (mountedRef.current) setLoadingConversations(false);
+      if (mountedRef.current) {
+        setLoadingConversations(false);
+      }
     }
   }, [currentUserId]);
 
-  const loadMessages = useCallback(async (conversationId) => {
-    if (!conversationId || !currentUserId) return [];
-    try {
-      setLoadingMessages(true);
-      setError("");
-      const data = await getConversationMessages(conversationId);
-      if (mountedRef.current) setMessages(Array.isArray(data) ? data : []);
-      try { await markConversationAsRead(conversationId, currentUserId); } catch {}
-      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unreadCount: 0 } : c));
-      return data;
-    } catch (err) {
-      if (mountedRef.current) setError(err?.message || "Unable to load messages.");
-      return [];
-    } finally {
-      if (mountedRef.current) setLoadingMessages(false);
-    }
-  }, [currentUserId]);
+  const loadMessages = useCallback(
+    async (conversationId) => {
+      if (!conversationId || !currentUserId) return [];
 
-  // ✅ FIX 2: loadMessagingState now depends only on stable values
-  const loadMessagingState = useCallback(async (targetUser) => {
-    if (!currentUserId || !targetUser?.id) return null;
-    try {
-      setLoadingUser(true);
-      // service accepts (currentUser, targetUser) — this is correct
-      const state = await getMessagingState(currentUser, targetUser);
-      if (mountedRef.current) setMessagingState(state);
-      return state;
-    } catch (err) {
-      return null;
-    } finally {
-      if (mountedRef.current) setLoadingUser(false);
-    }
-  }, [currentUserId, currentUser]); // currentUser is now stable via useMemo
+      try {
+        setLoadingMessages(true);
+        setError("");
 
-  // initial load
+        const data = await getConversationMessages(conversationId);
+
+        if (mountedRef.current) {
+          setMessages(Array.isArray(data) ? data : []);
+        }
+
+        try {
+          await markConversationAsRead(conversationId, currentUserId);
+        } catch (readError) {
+          console.error("Unable to mark conversation as read:", readError);
+        }
+
+        if (mountedRef.current) {
+          setConversations((previous) =>
+            previous.map((conversation) =>
+              conversation.id === conversationId
+                ? { ...conversation, unreadCount: 0 }
+                : conversation
+            )
+          );
+        }
+
+        return data || [];
+      } catch (err) {
+        if (mountedRef.current) {
+          setError(err?.message || "Unable to load messages.");
+        }
+
+        return [];
+      } finally {
+        if (mountedRef.current) {
+          setLoadingMessages(false);
+        }
+      }
+    },
+    [currentUserId]
+  );
+
+  const loadMessagingState = useCallback(
+    async (targetUser) => {
+      if (!currentUserId || !targetUser?.id) return null;
+
+      try {
+        setLoadingUser(true);
+
+        const state = await getMessagingState(currentUser, targetUser);
+
+        if (mountedRef.current) {
+          setMessagingState(state);
+        }
+
+        return state;
+      } catch (err) {
+        if (mountedRef.current) {
+          setError(err?.message || "Unable to check messaging permissions.");
+        }
+
+        return null;
+      } finally {
+        if (mountedRef.current) {
+          setLoadingUser(false);
+        }
+      }
+    },
+    [currentUserId, currentUser]
+  );
+
+  // Initial conversation load
   useEffect(() => {
-    if (currentUserId) loadConversations();
+    if (currentUserId) {
+      loadConversations();
+    } else {
+      setConversations([]);
+      setLoadingConversations(false);
+    }
   }, [currentUserId, loadConversations]);
 
-  // realtime conversation list
+  // Realtime conversation updates
   useEffect(() => {
     if (!currentUserId) return;
-    let sub = null;
+
+    let subscription = null;
+
     const timer = setTimeout(() => {
-      sub = subscribeToUserConversations(currentUserId, () => {
-        loadConversations();
-      });
+      subscription = subscribeToUserConversations(
+        currentUserId,
+        () => loadConversations()
+      );
     }, 500);
+
     return () => {
       clearTimeout(timer);
-      if (sub?.unsubscribe) sub.unsubscribe();
+
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      }
     };
   }, [currentUserId, loadConversations]);
 
-  // realtime messages
+  // Realtime messages
   useEffect(() => {
     if (!activeConversation?.id) return;
-    const sub = subscribeToConversationMessages(activeConversation.id, (newMessage) => {
-      if (newMessage.sender_id === currentUserId) return;
-      setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
-      loadConversations();
-    });
-    return () => { if (sub?.unsubscribe) sub.unsubscribe(); };
+
+    const subscription = subscribeToConversationMessages(
+      activeConversation.id,
+      (newMessage) => {
+        if (newMessage.sender_id === currentUserId) return;
+
+        setMessages((previous) =>
+          previous.some((message) => message.id === newMessage.id)
+            ? previous
+            : [...previous, newMessage]
+        );
+
+        loadConversations();
+      }
+    );
+
+    return () => {
+      if (subscription?.unsubscribe) {
+        subscription.unsubscribe();
+      }
+    };
   }, [activeConversation?.id, currentUserId, loadConversations]);
 
-  // ✅ FIX 3: location.state effect — stable deps, no cascade
+  // Open conversation passed through navigation state
   useEffect(() => {
     const activeId = location.state?.activeConversationId;
-    if (!activeId || conversations.length === 0) return;
-    const conv = conversations.find(c => c.id === activeId);
-    if (conv) {
-      setActiveConversation(conv);
-      setSelectedUser(conv.otherUser || null);
-      setShowConversation(true);
-      loadMessages(conv.id);
-      if (conv.otherUser) loadMessagingState(conv.otherUser);
-    }
-  }, [location.state, conversations, loadMessages, loadMessagingState]);
 
-  // ?user= legacy link
+    if (!activeId || conversations.length === 0) return;
+
+    const conversation = conversations.find(
+      (item) => item.id === activeId
+    );
+
+    if (!conversation) return;
+
+    setActiveConversation(conversation);
+    setSelectedUser(conversation.otherUser || null);
+    setShowConversation(true);
+    loadMessages(conversation.id);
+
+    if (conversation.otherUser) {
+      loadMessagingState(conversation.otherUser);
+    }
+  }, [
+    location.state,
+    conversations,
+    loadMessages,
+    loadMessagingState,
+  ]);
+
+  // Support /messages?user=USER_ID links
   const urlUserId = searchParams.get("user");
+
   useEffect(() => {
-    if (!urlUserId || !currentUserId || conversations.length === 0) return;
+    if (!urlUserId || !currentUserId || conversations.length === 0) {
+      return;
+    }
+
     let cancelled = false;
-    const open = async () => {
+
+    const openUser = async () => {
       try {
-        const existing = conversations.find(c => c.otherUser?.id === urlUserId);
+        const existing = conversations.find(
+          (conversation) => conversation.otherUser?.id === urlUserId
+        );
+
         if (existing && !cancelled) {
           setActiveConversation(existing);
           setSelectedUser(existing.otherUser);
@@ -166,113 +283,224 @@ export default function MessagesPage() {
           await loadMessages(existing.id);
           return;
         }
+
         const targetUser = await getMessagingProfile(urlUserId);
+
         if (cancelled || !targetUser?.id) return;
+
         await handleSelectUser(targetUser);
-      } catch (e) {
-        if (!cancelled) setError(e.message);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.message || "Unable to open this conversation.");
+        }
       } finally {
-        if (!cancelled) setSearchParams({}, { replace: true });
+        if (!cancelled) {
+          setSearchParams({}, { replace: true });
+        }
       }
     };
-    open();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line
+
+    openUser();
+
+    return () => {
+      cancelled = true;
+    };
+    // This effect responds to the URL's user parameter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlUserId]);
 
   const handleSelectConversation = async (conversation) => {
     if (!conversation?.id) return;
-    setError(""); setNotice(""); setConnectionNotice(""); setMessageText("");
+
+    setError("");
+    setNotice("");
+    setConnectionNotice("");
+    setMessageText("");
     setActiveConversation(conversation);
     setSelectedUser(conversation.otherUser || null);
     setShowConversation(true);
+
     await loadMessages(conversation.id);
-    if (conversation.otherUser) await loadMessagingState(conversation.otherUser);
+
+    if (conversation.otherUser) {
+      await loadMessagingState(conversation.otherUser);
+    }
   };
 
   const handleSelectUser = async (targetUser) => {
     if (!targetUser?.id || targetUser.id === currentUserId) return;
-    setError(""); setNotice(""); setConnectionNotice("");
+
+    setError("");
+    setNotice("");
+    setConnectionNotice("");
+    setActiveConversation(null);
+    setMessages([]);
     setSelectedUser(targetUser);
     setShowConversation(true);
 
     const state = await loadMessagingState(targetUser);
+
     if (!state) return;
 
-    const existing = conversations.find(c => c.otherUser?.id === targetUser.id);
+    const existing = conversations.find(
+      (conversation) => conversation.otherUser?.id === targetUser.id
+    );
+
     if (existing) {
       setActiveConversation(existing);
       await loadMessages(existing.id);
       return;
     }
 
-    if (state.status === "connected" || state.status === "session_active" || state.status === "direct") {
+    if (
+      ["connected", "session_active", "direct"].includes(state.status)
+    ) {
       try {
         setLoadingMessages(true);
-        const conv = await createPrivateConversation(currentUserId, targetUser.id);
-        const fresh = await loadConversations();
-        const found = fresh.find(c => c.id === conv?.id) || fresh.find(c => c.otherUser?.id === targetUser.id);
+
+        const conversation = await createPrivateConversation(
+          currentUserId,
+          targetUser.id
+        );
+
+        const freshConversations = await loadConversations();
+
+        const found =
+          freshConversations.find((item) => item.id === conversation?.id) ||
+          freshConversations.find(
+            (item) => item.otherUser?.id === targetUser.id
+          );
+
         if (found) {
           setActiveConversation(found);
           await loadMessages(found.id);
         }
-      } catch (e) { setError(e.message); }
-      finally { setLoadingMessages(false); }
+      } catch (err) {
+        setError(err?.message || "Unable to create conversation.");
+      } finally {
+        setLoadingMessages(false);
+      }
+
       return;
     }
 
-    if (["request_required", "session_expired", "connection_required"].includes(state.status)) {
+    if (
+      [
+        "request_required",
+        "session_expired",
+        "connection_required",
+      ].includes(state.status)
+    ) {
       setRequestUser(targetUser);
       return;
     }
 
-    setConnectionNotice(state.reason || "Messaging not available");
+    setConnectionNotice(state.reason || "Messaging is not available.");
   };
 
   const handleSendMessage = async () => {
     const content = messageText.trim();
+
     if (!content || !activeConversation?.id || sendingMessage) return;
+
     try {
       setSendingMessage(true);
-      const newMsg = await sendMessage({
+      setError("");
+
+      const newMessage = await sendMessage({
         conversationId: activeConversation.id,
         senderId: currentUserId,
         content,
       });
+
       if (mountedRef.current) {
-        setMessages(prev => [...prev, newMsg]);
+        setMessages((previous) =>
+          previous.some((message) => message.id === newMessage.id)
+            ? previous
+            : [...previous, newMessage]
+        );
+
         setMessageText("");
-        setConversations(prev =>
-          prev.map(c => c.id === activeConversation.id
-            ? { ...c, lastMessage: newMsg, updated_at: newMsg.created_at }
-            : c
-          ).sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+
+        setConversations((previous) =>
+          previous
+            .map((conversation) =>
+              conversation.id === activeConversation.id
+                ? {
+                    ...conversation,
+                    lastMessage: newMessage,
+                    updated_at: newMessage.created_at,
+                  }
+                : conversation
+            )
+            .sort(
+              (a, b) =>
+                new Date(b.updated_at || 0) -
+                new Date(a.updated_at || 0)
+            )
         );
       }
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-    } catch (e) { setError(e.message); }
-    finally { if (mountedRef.current) setSendingMessage(false); }
+
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: "smooth",
+        });
+      }, 100);
+    } catch (err) {
+      setError(err?.message || "Unable to send message.");
+    } finally {
+      if (mountedRef.current) {
+        setSendingMessage(false);
+      }
+    }
   };
 
   const handleAttach = async (file) => {
     if (!file || !activeConversation?.id) return;
+
     try {
       setUploading(true);
       setError("");
-      const media = await uploadMessageMedia(file, activeConversation.id, currentUserId);
-      const newMsg = await sendMessage({
+
+      // Keep your existing media upload service here.
+      const media = await uploadMessageMedia(
+        file,
+        activeConversation.id,
+        currentUserId
+      );
+
+      const newMessage = await sendMessage({
         conversationId: activeConversation.id,
         senderId: currentUserId,
         content: "",
         media_url: media.media_url,
         media_type: media.media_type,
       });
+
       if (mountedRef.current) {
-        setMessages(prev => [...prev, newMsg]);
-        setConversations(prev => prev.map(c => c.id === activeConversation.id ? { ...c, lastMessage: newMsg } : c));
+        setMessages((previous) =>
+          previous.some((message) => message.id === newMessage.id)
+            ? previous
+            : [...previous, newMessage]
+        );
+
+        setConversations((previous) =>
+          previous.map((conversation) =>
+            conversation.id === activeConversation.id
+              ? {
+                  ...conversation,
+                  lastMessage: newMessage,
+                  updated_at: newMessage.created_at,
+                }
+              : conversation
+          )
+        );
       }
-    } catch (e) { setError(e.message); }
-    finally { setUploading(false); }
+    } catch (err) {
+      setError(err?.message || "Unable to upload attachment.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleBack = () => {
@@ -282,33 +510,99 @@ export default function MessagesPage() {
     setMessages([]);
     setMessagingState(null);
     setMessageText("");
-    setError(""); setNotice(""); setConnectionNotice("");
+    setError("");
+    setNotice("");
+    setConnectionNotice("");
   };
 
   const composerState = useMemo(() => {
-    if (!selectedUser) return { disabled: true, message: "Select a conversation" };
-    if (!messagingState) return { disabled: true, message: "Loading..." };
-    if (messagingState.status === "request_pending") return { disabled: true, message: "Request pending..." };
-    if (messagingState.status === "session_expired") return { disabled: true, message: "Session expired. Send new request." };
-    if (["connected", "session_active", "direct"].includes(messagingState.status)) return { disabled: false, message: "" };
-    if (messagingState.status === "unavailable") return { disabled: true, message: "Unavailable" };
-    return { disabled: true, message: "Send a request to start messaging" };
-  }, [selectedUser, messagingState]);
+    if (!selectedUser) {
+      return {
+        disabled: true,
+        message: "Select a conversation",
+      };
+    }
+
+    if (!messagingState || loadingUser) {
+      return {
+        disabled: true,
+        message: "Checking messaging access...",
+      };
+    }
+
+    if (messagingState.status === "request_pending") {
+      return {
+        disabled: true,
+        message: "Request pending...",
+      };
+    }
+
+    if (messagingState.status === "session_expired") {
+      return {
+        disabled: true,
+        message: "Session expired. Send a new request.",
+      };
+    }
+
+    if (
+      ["connected", "session_active", "direct"].includes(
+        messagingState.status
+      )
+    ) {
+      return {
+        disabled: false,
+        message: "",
+      };
+    }
+
+    if (messagingState.status === "unavailable") {
+      return {
+        disabled: true,
+        message: "Unavailable",
+      };
+    }
+
+    return {
+      disabled: true,
+      message: "Send a request to start messaging",
+    };
+  }, [selectedUser, messagingState, loadingUser]);
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden bg-white">
-      <aside className={`flex w-full flex-col border-r border-gray-100 bg-white md:w-[350px] lg:w-[390px] ${showConversation ? "hidden md:flex" : "flex"}`}>
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3.5">
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate(-1)} className="rounded-full p-2 text-purple-600 hover:bg-purple-50">
+    <div className="flex h-full min-h-0 w-full overflow-hidden bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/70">
+
+      {/* CONVERSATION SIDEBAR */}
+      <aside
+        className={`relative flex w-full flex-col border-r border-white/80 bg-white/70 shadow-[8px_0_35px_rgba(91,33,182,0.06)] backdrop-blur-2xl md:w-[350px] lg:w-[390px] ${
+          showConversation ? "hidden md:flex" : "flex"
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-violet-100/80 bg-white/50 px-4 py-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-100 bg-white/80 text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+              aria-label="Go back"
+            >
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-xl font-bold">@{currentUser?.username || "Direct"}</h1>
+
+            <h1 className="truncate bg-gradient-to-r from-violet-950 via-purple-800 to-fuchsia-700 bg-clip-text text-xl font-extrabold tracking-tight text-transparent">
+              @{currentUser?.username || "Direct"}
+            </h1>
           </div>
-          <button onClick={() => navigate("/search")} className="rounded-full p-2 text-purple-600 hover:bg-purple-50">
-            <Edit3 size={20} />
+
+          <button
+            type="button"
+            onClick={() => navigate("/search")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-100 bg-white/80 text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+            aria-label="Search people"
+          >
+            <Edit3 size={19} />
           </button>
         </div>
+
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ConversationList
             conversations={conversations}
@@ -319,83 +613,193 @@ export default function MessagesPage() {
         </div>
       </aside>
 
-      <main className={`flex min-w-0 flex-1 flex-col bg-white ${showConversation ? "flex" : "hidden md:flex"}`}>
+      {/* CHAT PANEL */}
+      <main
+        className={`relative flex min-w-0 flex-1 flex-col bg-white/45 backdrop-blur-xl ${
+          showConversation ? "flex" : "hidden md:flex"
+        }`}
+      >
         {!activeConversation && !selectedUser ? (
-          <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-            <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full border-2 border-purple-500 bg-purple-50">
-              <MessageCircle size={48} className="text-purple-600" />
+          <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden p-8 text-center">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-300/20 blur-3xl"
+            />
+
+            <div className="relative mb-6 flex h-28 w-28 items-center justify-center rounded-[2rem] border border-white bg-gradient-to-br from-violet-100 via-purple-50 to-fuchsia-100 shadow-[0_0_0_1px_rgba(167,139,250,0.35),0_15px_50px_rgba(124,58,237,0.18)]">
+              <MessageCircle
+                size={48}
+                className="text-violet-600"
+              />
+              <Sparkles
+                size={20}
+                className="absolute right-3 top-3 text-fuchsia-500"
+              />
             </div>
-            <h2 className="text-xl font-bold">Your Messages</h2>
-            <p className="mt-2 max-w-xs text-sm text-gray-500">Select a conversation or search for someone.</p>
-            <button onClick={() => navigate("/search")} className="mt-4 rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white">
+
+            <h2 className="bg-gradient-to-r from-violet-950 via-purple-800 to-fuchsia-700 bg-clip-text text-2xl font-extrabold text-transparent">
+              Your Messages
+            </h2>
+
+            <p className="mt-3 max-w-xs text-sm leading-6 text-slate-500">
+              Select a conversation or search for someone to connect with
+              your university community.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate("/search")}
+              className="mt-6 rounded-xl bg-gradient-to-r from-violet-700 via-purple-600 to-fuchsia-600 px-5 py-3 text-sm font-bold text-white shadow-[0_8px_25px_rgba(124,58,237,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(168,85,247,0.4)]"
+            >
               Search people
             </button>
           </div>
         ) : (
           <>
-            <header className="flex h-16 items-center gap-3 border-b border-gray-100 px-5">
-              <button onClick={handleBack} className="rounded-full p-2 text-purple-600 hover:bg-purple-50 md:hidden">
-                <ArrowLeft size={20} />
+            {/* CHAT HEADER */}
+            <header className="flex h-16 shrink-0 items-center gap-3 border-b border-violet-100/80 bg-white/70 px-4 shadow-[0_4px_20px_rgba(91,33,182,0.04)] backdrop-blur-2xl sm:px-5">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-violet-100 bg-white/80 text-violet-700 transition hover:bg-violet-50 md:hidden"
+                aria-label="Back to conversations"
+              >
+                <ArrowLeft size={19} />
               </button>
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-purple-100">
-                {selectedUser?.avatar_url
-                  ? <img src={selectedUser.avatar_url} alt="" className="h-full w-full object-cover" />
-                  : <User size={18} className="text-purple-600" />}
+
+              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-gradient-to-br from-violet-100 to-fuchsia-100 shadow-[0_0_0_2px_rgba(167,139,250,0.5),0_0_20px_rgba(168,85,247,0.14)]">
+                {selectedUser?.avatar_url ? (
+                  <img
+                    src={selectedUser.avatar_url}
+                    alt={selectedUser.full_name || selectedUser.username || "User"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <User size={19} className="text-violet-600" />
+                )}
               </div>
+
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-sm font-semibold">{selectedUser?.full_name || selectedUser?.username}</h2>
-                {selectedUser?.role && <p className="text-xs capitalize text-purple-600">{selectedUser.role.replace("_", " ")}</p>}
+                <h2 className="truncate text-sm font-bold text-slate-900">
+                  {selectedUser?.full_name || selectedUser?.username}
+                </h2>
+
+                {selectedUser?.role && (
+                  <p className="mt-0.5 text-xs capitalize text-violet-600">
+                    {selectedUser.role.replace("_", " ")}
+                  </p>
+                )}
               </div>
+
+              {messagingState?.status === "session_active" && (
+                <span className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:flex">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Session active
+                </span>
+              )}
             </header>
 
+            {/* ALERTS */}
             {(error || notice || connectionNotice) && (
-              <div className="border-b border-gray-100 px-5 py-3">
-                {error && <div className="flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={18} />{error}</div>}
-                {notice && <div className="flex gap-2 rounded-xl bg-purple-50 p-3 text-sm text-purple-800"><Sparkles size={16} />{notice}</div>}
-                {connectionNotice && <div className="rounded-xl bg-purple-50 p-3 text-sm text-purple-900">{connectionNotice}</div>}
+              <div className="space-y-2 border-b border-violet-100/80 bg-white/40 px-4 py-3 sm:px-5">
+                {error && (
+                  <div className="flex items-start gap-2 rounded-xl border border-rose-200/80 bg-rose-50/90 p-3 text-sm text-rose-700">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {notice && (
+                  <div className="flex items-start gap-2 rounded-xl border border-violet-200/80 bg-violet-50/90 p-3 text-sm text-violet-800">
+                    <Sparkles size={17} className="mt-0.5 shrink-0" />
+                    <span>{notice}</span>
+                  </div>
+                )}
+
+                {connectionNotice && (
+                  <div className="rounded-xl border border-violet-200/80 bg-violet-50/90 p-3 text-sm text-violet-900">
+                    {connectionNotice}
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-2">
-              <MessageList messages={messages} currentUserId={currentUserId} loading={loadingMessages} />
+            {/* MESSAGE HISTORY */}
+            <div className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-white/30 via-violet-50/20 to-fuchsia-50/30 px-2 sm:px-4">
+              <MessageList
+                messages={messages}
+                currentUserId={currentUserId}
+                loading={loadingMessages}
+              />
+
               <div ref={messagesEndRef} />
             </div>
 
-            <MessageComposer
-              value={messageText}
-              onChange={setMessageText}
-              onSend={handleSendMessage}
-              onAttach={handleAttach}
-              disabled={composerState.disabled || sendingMessage || uploading}
-              disabledMessage={composerState.message}
-              sending={sendingMessage || uploading}
-              placeholder={uploading ? "Uploading..." : "Write a message..."}
-            />
+            {/* MESSAGE COMPOSER */}
+            <div className="shrink-0 border-t border-violet-100/80 bg-white/75 p-2 backdrop-blur-2xl sm:p-3">
+              <MessageComposer
+                value={messageText}
+                onChange={setMessageText}
+                onSend={handleSendMessage}
+                onAttach={handleAttach}
+                disabled={
+                  composerState.disabled ||
+                  sendingMessage ||
+                  uploading
+                }
+                disabledMessage={composerState.message}
+                sending={sendingMessage || uploading}
+                placeholder={
+                  uploading ? "Uploading..." : "Write a message..."
+                }
+              />
+            </div>
           </>
         )}
       </main>
 
+      {/* MESSAGE REQUEST MODAL */}
       <MessageRequestModal
         open={Boolean(requestUser)}
         user={requestUser}
         initialMessage={requestMessage}
         submitting={sendingRequest}
-        onClose={() => { if (sendingRequest) return; setRequestUser(null); }}
+        onClose={() => {
+          if (sendingRequest) return;
+          setRequestUser(null);
+        }}
         onSubmit={async (msg) => {
           if (!requestUser?.id) return;
+
           const targetForReload = requestUser;
+
           try {
             setSendingRequest(true);
+            setError("");
+
             if (messagingState?.status === "connection_required") {
-              await createConnectionRequest({ requesterId: currentUserId, targetId: requestUser.id, message: msg });
+              await createConnectionRequest({
+                requesterId: currentUserId,
+                targetId: requestUser.id,
+                message: msg,
+              });
             } else {
-              await createMessageRequest({ requesterId: currentUserId, targetId: requestUser.id, message: msg });
+              await createMessageRequest({
+                requesterId: currentUserId,
+                targetId: requestUser.id,
+                message: msg,
+              });
             }
+
             setRequestUser(null);
             setNotice("Request sent successfully");
+
             await loadMessagingState(targetForReload);
-          } catch (e) { setError(e.message); }
-          finally { setSendingRequest(false); }
+          } catch (err) {
+            setError(err?.message || "Unable to send request.");
+          } finally {
+            setSendingRequest(false);
+          }
         }}
       />
     </div>

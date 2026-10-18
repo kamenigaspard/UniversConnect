@@ -12,6 +12,8 @@ import {
   User,
   Users,
   Heart,
+  Sparkles,
+  Settings,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -49,13 +51,26 @@ const AnimatedPost = ({ children }) => {
       className={`transform transition-all duration-500 ease-out ${
         isVisible
           ? "translate-y-0 scale-100 opacity-100"
-          : "translate-y-10 scale-95 opacity-0"
+          : "translate-y-8 scale-[0.98] opacity-0"
       }`}
     >
       {children}
     </div>
   );
 };
+
+// ============================================================
+// Reusable glass styles
+// ============================================================
+
+const glassCard =
+  "rounded-2xl border border-white/80 bg-white/75 shadow-[0_8px_32px_rgba(91,33,182,0.07)] backdrop-blur-xl";
+
+const iconButton =
+  "flex h-10 w-10 items-center justify-center rounded-xl border border-purple-100/80 bg-white/70 text-purple-700 transition duration-200 hover:border-purple-300 hover:bg-purple-50 hover:shadow-[0_0_18px_rgba(168,85,247,0.18)] active:scale-95";
+
+const primaryButton =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_5px_18px_rgba(139,92,246,0.28)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(139,92,246,0.38)] active:translate-y-0";
 
 // ============================================================
 // StudentHome
@@ -463,10 +478,16 @@ const StudentHome = () => {
 
   if (loading && !profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-purple-600" />
-          <p className="text-sm text-gray-500">Loading your home...</p>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f8f5ff]">
+        <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-violet-300/30 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 -right-20 h-72 w-72 rounded-full bg-fuchsia-300/25 blur-3xl" />
+        <div className="relative flex flex-col items-center gap-4">
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-white/80 bg-white/70 shadow-[0_0_35px_rgba(139,92,246,0.22)] backdrop-blur-xl">
+            <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-violet-200 border-t-violet-600" />
+          </div>
+          <p className="text-sm font-medium text-violet-700">
+            Preparing your UniVerse...
+          </p>
         </div>
       </div>
     );
@@ -478,92 +499,120 @@ const StudentHome = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  const navItems = [
-    {
-      label: "Home",
-      path: "/student-home",
-      icon: Home,
-    },
-    {
-      label: "Search",
-      path: "/search",
-      icon: Search,
-    },
-    {
-      label: "Requests",
-      path: "/requests",
-      icon: Heart,
-    },
-    {
-      label: "Profile",
-      path: "/profile",
-      icon: User,
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="relative min-h-screen overflow-x-clip bg-[#f8f5ff] pb-28 text-slate-800">
+      {/* AMBIENT BACKGROUND GLOW */}
+      <div className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
+        <div className="absolute -left-32 top-24 h-80 w-80 rounded-full bg-violet-300/20 blur-[100px]" />
+        <div className="absolute -right-32 top-[35%] h-96 w-96 rounded-full bg-fuchsia-300/20 blur-[120px]" />
+        <div className="absolute bottom-10 left-[30%] h-72 w-72 rounded-full bg-indigo-300/15 blur-[100px]" />
+      </div>
+
       {/* HEADER */}
-      <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-white/70 bg-white/75 shadow-[0_4px_24px_rgba(91,33,182,0.05)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
-            {school?.logo_url ? (
-              <img
-                src={school.logo_url}
-                alt={school.name || "School logo"}
-                className="h-10 w-10 rounded-full object-cover ring-1 ring-gray-200"
-              />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                <Users size={20} />
-              </div>
-            )}
+            <div className="relative shrink-0">
+              {school?.logo_url ? (
+                <img
+                  src={school.logo_url}
+                  alt={school.name || "School logo"}
+                  className="h-11 w-11 rounded-2xl border border-white object-cover shadow-[0_0_18px_rgba(139,92,246,0.18)]"
+                />
+              ) : (
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.3)]">
+                  <Users size={21} />
+                </div>
+              )}
+              <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+            </div>
 
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold text-gray-900">
-                {schoolLoading ? "Loading school..." : school?.name || "University"}
+              <h1 className="truncate text-sm font-bold tracking-tight text-slate-900">
+                {schoolLoading
+                  ? "Loading school..."
+                  : school?.name || "University"}
               </h1>
-              <p className="truncate text-xs text-gray-500">
+              <p className="truncate text-xs text-violet-600">
                 {profile?.full_name || profile?.username || "Student"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => navigate("/notifications")}
-              className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100"
+              className={iconButton}
               aria-label="Notifications"
             >
-              <Bell size={21} />
+              <Bell size={20} />
             </button>
 
             <button
               type="button"
               onClick={() => navigate("/messages")}
-              className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100"
+              className={iconButton}
               aria-label="Messages"
             >
-              <Send size={21} />
+              <Send size={19} />
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-3 sm:px-4">
+      <main className="relative z-10 mx-auto max-w-3xl px-3 sm:px-4">
+        {/* WELCOME STRIP */}
+        <section className="mt-5">
+          <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 p-[1px] shadow-[0_10px_32px_rgba(139,92,246,0.18)]">
+            <div className="relative overflow-hidden rounded-[15px] bg-white/95 px-4 py-4 backdrop-blur-xl sm:px-5">
+              <div className="pointer-events-none absolute -right-8 -top-12 h-32 w-32 rounded-full bg-fuchsia-300/30 blur-2xl" />
+              <div className="relative flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-[0_5px_16px_rgba(139,92,246,0.25)]">
+                  <Sparkles size={21} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">
+                    Your campus, your community
+                  </p>
+                  <h2 className="mt-0.5 text-base font-bold text-slate-900">
+                    Welcome to UniVerse
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Discover what's happening across your university.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* SCHOOL ERROR */}
         {schoolError && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-700">{schoolError}</p>
+          <div className="mt-4 rounded-2xl border border-rose-200/80 bg-rose-50/90 p-4 shadow-sm backdrop-blur-xl">
+            <p className="text-sm text-rose-700">{schoolError}</p>
           </div>
         )}
 
         {/* ADMIN SPOTLIGHT */}
         {spotlights.length > 0 && (
-          <section className="mt-4">
-            <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-              <div className="relative aspect-[16/8] w-full overflow-hidden bg-gray-100">
+          <section className="mt-5">
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-[0_0_16px_rgba(139,92,246,0.22)]">
+                <Sparkles size={16} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  Campus spotlight
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Updates from your administrators
+                </p>
+              </div>
+            </div>
+
+            <div className={`${glassCard} overflow-hidden`}>
+              <div className="relative aspect-[16/8] w-full overflow-hidden bg-gradient-to-br from-violet-100 via-purple-50 to-fuchsia-100">
                 {spotlights[currentSpotlight]?.image_url ||
                 spotlights[currentSpotlight]?.profile?.avatar_url ? (
                   <img
@@ -578,72 +627,39 @@ const StudentHome = () => {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center bg-gray-100">
-                    <Users size={48} className="text-gray-300" />
+                  <div className="flex h-full items-center justify-center">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/80 bg-white/70 text-violet-500 shadow-[0_0_35px_rgba(139,92,246,0.2)] backdrop-blur-xl">
+                      <Users size={38} />
+                    </div>
                   </div>
                 )}
+
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/20 via-transparent to-white/10" />
 
                 {spotlights.length > 1 && (
                   <>
                     <button
                       type="button"
                       onClick={previousSpotlight}
-                      className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
+                      className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/40 bg-slate-900/30 text-white shadow-lg backdrop-blur-xl transition hover:bg-slate-900/50 active:scale-95"
                       aria-label="Previous spotlight"
                     >
-                      <ChevronLeft size={20} />
+                      <ChevronLeft size={21} />
                     </button>
 
                     <button
                       type="button"
                       onClick={nextSpotlight}
-                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
+                      className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/40 bg-slate-900/30 text-white shadow-lg backdrop-blur-xl transition hover:bg-slate-900/50 active:scale-95"
                       aria-label="Next spotlight"
                     >
-                      <ChevronRight size={20} />
+                      <ChevronRight size={21} />
                     </button>
                   </>
                 )}
-              </div>
-
-              <div className="p-4">
-                <div className="flex items-center gap-3">
-                  {spotlights[currentSpotlight]?.profile?.avatar_url ? (
-                    <img
-                      src={spotlights[currentSpotlight].profile.avatar_url}
-                      alt={spotlights[currentSpotlight].profile.full_name || "Administrator"}
-                      className="h-9 w-9 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                      <User size={18} />
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {spotlights[currentSpotlight]?.profile?.full_name ||
-                        spotlights[currentSpotlight]?.profile?.username ||
-                        "Administrator"}
-                    </p>
-                    <p className="text-xs text-gray-500">Administrator Spotlight</p>
-                  </div>
-                </div>
-
-                {spotlights[currentSpotlight]?.title && (
-                  <h2 className="mt-3 text-base font-semibold text-gray-900">
-                    {spotlights[currentSpotlight].title}
-                  </h2>
-                )}
-
-                {spotlights[currentSpotlight]?.description && (
-                  <p className="mt-1 text-sm leading-6 text-gray-600">
-                    {spotlights[currentSpotlight].description}
-                  </p>
-                )}
 
                 {spotlights.length > 1 && (
-                  <div className="mt-4 flex justify-center gap-1.5">
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
                     {spotlights.map((spotlight, index) => (
                       <button
                         key={spotlight.id}
@@ -651,8 +667,8 @@ const StudentHome = () => {
                         onClick={() => setCurrentSpotlight(index)}
                         className={`h-1.5 rounded-full transition-all ${
                           index === currentSpotlight
-                            ? "w-5 bg-purple-600"
-                            : "w-1.5 bg-gray-300"
+                            ? "w-6 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
+                            : "w-1.5 bg-white/60 hover:bg-white"
                         }`}
                         aria-label={`Show spotlight ${index + 1}`}
                       />
@@ -660,57 +676,131 @@ const StudentHome = () => {
                   </div>
                 )}
               </div>
+
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center gap-3">
+                  {spotlights[currentSpotlight]?.profile?.avatar_url ? (
+                    <img
+                      src={spotlights[currentSpotlight].profile.avatar_url}
+                      alt={
+                        spotlights[currentSpotlight].profile.full_name ||
+                        "Administrator"
+                      }
+                      className="h-11 w-11 rounded-2xl border border-white object-cover shadow-[0_0_14px_rgba(139,92,246,0.15)]"
+                    />
+                  ) : (
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.22)]">
+                      <User size={19} />
+                    </div>
+                  )}
+
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-900">
+                      {spotlights[currentSpotlight]?.profile?.full_name ||
+                        spotlights[currentSpotlight]?.profile?.username ||
+                        "Administrator"}
+                    </p>
+                    <p className="mt-0.5 text-xs font-medium text-violet-600">
+                      Administrator Spotlight
+                    </p>
+                  </div>
+                </div>
+
+                {spotlights[currentSpotlight]?.title && (
+                  <h3 className="mt-4 text-base font-bold text-slate-900">
+                    {spotlights[currentSpotlight].title}
+                  </h3>
+                )}
+
+                {spotlights[currentSpotlight]?.description && (
+                  <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-slate-600">
+                    {spotlights[currentSpotlight].description}
+                  </p>
+                )}
+              </div>
             </div>
           </section>
         )}
 
         {/* CREATE POST CARD */}
-        <section className="mt-4">
-          <button
-            type="button"
-            onClick={handleCreatePost}
-            className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-gray-100 transition hover:ring-gray-200"
-          >
-            {profile?.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt={profile.full_name || "Your profile"}
-                className="h-10 w-10 shrink-0 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                <User size={20} />
+        <section className="mt-5">
+          <div className="rounded-2xl bg-gradient-to-r from-violet-400/70 via-fuchsia-400/70 to-indigo-400/70 p-[1px] shadow-[0_8px_28px_rgba(139,92,246,0.12)]">
+            <button
+              type="button"
+              onClick={handleCreatePost}
+              className="group flex w-full items-center gap-3 rounded-[15px] border border-white/80 bg-white/85 p-4 text-left backdrop-blur-xl transition duration-200 hover:bg-white/95"
+            >
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.full_name || "Your profile"}
+                  className="h-11 w-11 shrink-0 rounded-2xl border border-white object-cover shadow-[0_0_15px_rgba(139,92,246,0.16)]"
+                />
+              ) : (
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-[0_0_18px_rgba(139,92,246,0.25)]">
+                  <User size={20} />
+                </div>
+              )}
+
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-800">
+                  What's happening at your university?
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Share a moment with your campus community
+                </p>
               </div>
-            )}
 
-            <div className="flex-1 rounded-full bg-gray-100 px-4 py-2.5">
-              <span className="text-sm text-gray-500">
-                What's happening at your university?
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-[0_0_20px_rgba(139,92,246,0.3)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_26px_rgba(168,85,247,0.4)]">
+                <Plus size={22} />
               </span>
-            </div>
+            </button>
+          </div>
+        </section>
 
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-600 text-white">
-              <Plus size={20} />
-            </div>
-          </button>
+        {/* FEED HEADER */}
+        <section className="mb-3 mt-6 flex items-center justify-between px-1">
+          <div>
+            <h2 className="text-base font-bold tracking-tight text-slate-900">
+              Your campus feed
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              The latest posts from your university
+            </p>
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-purple-100 bg-white/70 text-violet-600 shadow-sm">
+            <MessageCircle size={17} />
+          </div>
         </section>
 
         {/* FEED */}
-        <section className="mt-4 space-y-4">
+        <section className="space-y-4">
           {postsLoading && (
-            <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-12 shadow-sm ring-1 ring-gray-100">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-purple-600" />
-              <p className="mt-3 text-sm text-gray-500">Loading posts...</p>
+            <div className={`${glassCard} flex flex-col items-center justify-center py-12`}>
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white bg-gradient-to-br from-violet-100 to-fuchsia-100 shadow-[0_0_24px_rgba(139,92,246,0.12)]">
+                <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-violet-200 border-t-violet-600" />
+              </div>
+              <p className="mt-4 text-sm font-semibold text-violet-700">
+                Loading your feed...
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Finding the latest campus updates
+              </p>
             </div>
           )}
 
           {!postsLoading && postsError && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
-              <p className="text-sm font-medium text-red-700">{postsError}</p>
+            <div className="rounded-2xl border border-rose-200/80 bg-white/80 p-6 text-center shadow-[0_8px_24px_rgba(190,24,93,0.06)] backdrop-blur-xl">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
+                <MessageCircle size={22} />
+              </div>
+              <p className="mt-3 text-sm font-semibold text-rose-700">
+                {postsError}
+              </p>
               <button
                 type="button"
                 onClick={handleRetryPosts}
-                className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                className="mt-4 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_5px_16px_rgba(139,92,246,0.24)] transition hover:shadow-[0_8px_22px_rgba(139,92,246,0.35)]"
               >
                 Try again
               </button>
@@ -718,18 +808,20 @@ const StudentHome = () => {
           )}
 
           {!postsLoading && !postsError && posts.length === 0 && (
-            <div className="rounded-2xl bg-white px-5 py-12 text-center shadow-sm ring-1 ring-gray-100">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-                <MessageCircle size={26} className="text-gray-400" />
+            <div className={`${glassCard} px-5 py-12 text-center`}>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-white bg-gradient-to-br from-violet-100 to-fuchsia-100 text-violet-600 shadow-[0_0_26px_rgba(139,92,246,0.15)]">
+                <MessageCircle size={27} />
               </div>
-              <h2 className="mt-4 text-base font-semibold text-gray-900">No posts yet</h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Be the first person to share something with your university community.
+              <h2 className="mt-4 text-base font-bold text-slate-900">
+                Your feed is waiting
+              </h2>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-500">
+                Be the first to share something with your university community.
               </p>
               <button
                 type="button"
                 onClick={handleCreatePost}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-purple-700"
+                className={`${primaryButton} mt-5`}
               >
                 <Plus size={17} />
                 Create a post
@@ -751,8 +843,8 @@ const StudentHome = () => {
               className="flex min-h-[80px] items-center justify-center"
             >
               {loadingMore && (
-                <div className="flex items-center gap-3 text-sm text-gray-500">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-purple-600" />
+                <div className="flex items-center gap-3 rounded-full border border-white/80 bg-white/70 px-4 py-2.5 text-sm font-medium text-violet-700 shadow-sm backdrop-blur-xl">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
                   <span>Loading more posts...</span>
                 </div>
               )}
@@ -761,38 +853,45 @@ const StudentHome = () => {
 
           {!postsError && posts.length > 0 && !hasMorePosts && (
             <div className="py-8 text-center">
-              <p className="text-sm font-medium text-gray-500">
-                You've reached the end of the feed.
+              <div className="mx-auto mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-purple-100 bg-white/70 text-violet-500">
+                <Sparkles size={17} />
+              </div>
+              <p className="text-sm font-semibold text-slate-600">
+                You've reached the end of your feed.
               </p>
-              <p className="mt-1 text-xs text-gray-400">No more posts to show.</p>
+              <p className="mt-1 text-xs text-slate-400">
+                You're all caught up for now.
+              </p>
             </div>
           )}
         </section>
       </main>
 
-      {/* ======================================================
-          FIXED BOTTOM NAVIGATION
-          Home | Search | Create | Requests | Profile
-          ====================================================== */}
-
+      {/* FIXED BOTTOM NAVIGATION */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-white/80 bg-white/80 shadow-[0_-8px_32px_rgba(91,33,182,0.09)] backdrop-blur-2xl"
         aria-label="Bottom navigation"
       >
-        <div className="mx-auto grid h-[68px] max-w-3xl grid-cols-5 items-center px-1 sm:px-3">
+        <div className="mx-auto grid h-[72px] max-w-3xl grid-cols-5 items-center px-1 sm:px-3">
           {/* HOME */}
           <button
             type="button"
             onClick={() => navigate("/student-home")}
             aria-current={isActive("/student-home") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+            className={`group flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/student-home")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700"
+                : "text-slate-500 hover:text-violet-600"
             }`}
           >
-            <Home size={22} strokeWidth={isActive("/student-home") ? 2.3 : 1.8} />
-            <span className="text-[10px] leading-none">Home</span>
+            <span className={`flex h-8 w-10 items-center justify-center rounded-xl transition ${
+              isActive("/student-home")
+                ? "bg-violet-100 text-violet-700 shadow-[0_0_14px_rgba(139,92,246,0.15)]"
+                : "group-hover:bg-violet-50"
+            }`}>
+              <Home size={21} strokeWidth={isActive("/student-home") ? 2.4 : 1.8} />
+            </span>
+            <span className="text-[10px] font-semibold leading-none">Home</span>
           </button>
 
           {/* SEARCH */}
@@ -800,14 +899,20 @@ const StudentHome = () => {
             type="button"
             onClick={() => navigate("/search")}
             aria-current={isActive("/search") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+            className={`group flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/search")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700"
+                : "text-slate-500 hover:text-violet-600"
             }`}
           >
-            <Search size={22} strokeWidth={isActive("/search") ? 2.3 : 1.8} />
-            <span className="text-[10px] leading-none">Search</span>
+            <span className={`flex h-8 w-10 items-center justify-center rounded-xl transition ${
+              isActive("/search")
+                ? "bg-violet-100 text-violet-700 shadow-[0_0_14px_rgba(139,92,246,0.15)]"
+                : "group-hover:bg-violet-50"
+            }`}>
+              <Search size={21} strokeWidth={isActive("/search") ? 2.4 : 1.8} />
+            </span>
+            <span className="text-[10px] font-semibold leading-none">Search</span>
           </button>
 
           {/* CREATE */}
@@ -815,12 +920,13 @@ const StudentHome = () => {
             type="button"
             onClick={handleCreatePost}
             aria-label="Create post"
-            className="flex h-full flex-col items-center justify-center gap-1 text-gray-500"
+            className="group flex h-full flex-col items-center justify-center gap-1 text-slate-500"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500 text-white shadow-[0_4px_12px_rgba(139,44,236,0.30)] transition duration-200 hover:scale-105 hover:bg-purple-600 active:scale-95">
-              <Plus size={25} strokeWidth={1.8} />
+            <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 text-white shadow-[0_0_24px_rgba(139,92,246,0.4)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_32px_rgba(168,85,247,0.5)] group-active:scale-95">
+              <span className="pointer-events-none absolute inset-[1px] rounded-[15px] border border-white/30" />
+              <Plus size={25} strokeWidth={2} />
             </span>
-            <span className="text-[10px] leading-none">Create</span>
+            <span className="text-[10px] font-semibold leading-none">Create</span>
           </button>
 
           {/* REQUESTS */}
@@ -828,18 +934,24 @@ const StudentHome = () => {
             type="button"
             onClick={() => navigate("/requests")}
             aria-current={isActive("/requests") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+            className={`group flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/requests")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700"
+                : "text-slate-500 hover:text-violet-600"
             }`}
           >
-            <Heart
-              size={22}
-              strokeWidth={isActive("/requests") ? 2.3 : 1.8}
-              fill={isActive("/requests") ? "currentColor" : "none"}
-            />
-            <span className="text-[10px] leading-none">Requests</span>
+            <span className={`flex h-8 w-10 items-center justify-center rounded-xl transition ${
+              isActive("/requests")
+                ? "bg-violet-100 text-violet-700 shadow-[0_0_14px_rgba(139,92,246,0.15)]"
+                : "group-hover:bg-violet-50"
+            }`}>
+              <Heart
+                size={21}
+                strokeWidth={isActive("/requests") ? 2.4 : 1.8}
+                fill={isActive("/requests") ? "currentColor" : "none"}
+              />
+            </span>
+            <span className="text-[10px] font-semibold leading-none">Requests</span>
           </button>
 
           {/* PROFILE */}
@@ -847,14 +959,39 @@ const StudentHome = () => {
             type="button"
             onClick={() => navigate("/profile")}
             aria-current={isActive("/profile") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
+            className={`group flex h-full flex-col items-center justify-center gap-1 transition ${
               isActive("/profile")
-                ? "text-purple-600"
-                : "text-gray-500 hover:text-gray-800"
+                ? "text-violet-700"
+                : "text-slate-500 hover:text-violet-600"
             }`}
           >
-            <User size={22} strokeWidth={isActive("/profile") ? 2.3 : 1.8} />
-            <span className="text-[10px] leading-none">Profile</span>
+            <span className={`flex h-8 w-10 items-center justify-center rounded-xl transition ${
+              isActive("/profile")
+                ? "bg-violet-100 text-violet-700 shadow-[0_0_14px_rgba(139,92,246,0.15)]"
+                : "group-hover:bg-violet-50"
+            }`}>
+              <User size={21} strokeWidth={isActive("/profile") ? 2.4 : 1.8} />
+            </span>
+            <span className="text-[10px] font-semibold leading-none">Profile</span>
+          </button>
+                    <button
+            type="button"
+            onClick={() => navigate("/settings")}
+            aria-current={isActive("/settings") ? "page" : undefined}
+            className={`group flex h-full flex-col items-center justify-center gap-1 transition ${
+              isActive("/settings")
+                ? "text-violet-700"
+                : "text-slate-500 hover:text-violet-600"
+            }`}
+          >
+            <span className={`flex h-8 w-10 items-center justify-center rounded-xl transition ${
+              isActive("/settings")
+                ? "bg-violet-100 text-violet-700 shadow-[0_0_14px_rgba(139,92,246,0.15)]"
+                : "group-hover:bg-violet-50"
+            }`}>
+              <Settings size={21} strokeWidth={isActive("/settings") ? 2.4 : 1.8} />
+            </span>
+            <span className="text-[10px] font-semibold leading-none">Settings</span>
           </button>
         </div>
       </nav>
