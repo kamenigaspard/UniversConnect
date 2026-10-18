@@ -481,7 +481,7 @@ const TeacherHome = () => {
   const navItems = [
     {
       label: "Home",
-      path: "/student-home",
+      path: "/teacher-home",
       icon: Home,
     },
     {
