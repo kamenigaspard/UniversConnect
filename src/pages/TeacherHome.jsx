@@ -17,6 +17,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import PostCard from "../components/PostCard";
+import BottomNavbar from "../components/BottomNavbar";
 
 // ============================================================
 // AnimatedPost
@@ -774,90 +775,15 @@ const TeacherHome = () => {
           FIXED BOTTOM NAVIGATION
           Home | Search | Create | Requests | Profile
           ====================================================== */}
-
-      <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-200/70 bg-white/75 shadow-[0_-8px_30px_rgba(109,40,217,0.10)] backdrop-blur-2xl"
-        aria-label="Bottom navigation"
-      >
-        <div className="mx-auto grid h-[68px] max-w-3xl grid-cols-5 items-center px-1 sm:px-3">
-          {/* HOME */}
-          <button
-            type="button"
-            onClick={() => navigate("/student-home")}
-            aria-current={isActive("/student-home") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
-              isActive("/student-home")
-                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
-                : "text-slate-500 transition hover:text-violet-700"
-            }`}
-          >
-            <Home size={22} strokeWidth={isActive("/student-home") ? 2.3 : 1.8} />
-            <span className="text-[10px] leading-none">Home</span>
-          </button>
-
-          {/* SEARCH */}
-          <button
-            type="button"
-            onClick={() => navigate("/search")}
-            aria-current={isActive("/search") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
-              isActive("/search")
-                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
-                : "text-slate-500 transition hover:text-violet-700"
-            }`}
-          >
-            <Search size={22} strokeWidth={isActive("/search") ? 2.3 : 1.8} />
-            <span className="text-[10px] leading-none">Search</span>
-          </button>
-
-          {/* CREATE */}
-          <button
-            type="button"
-            onClick={handleCreatePost}
-            aria-label="Create post"
-            className="flex h-full flex-col items-center justify-center gap-1 text-slate-500 transition hover:text-violet-700"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/80 bg-gradient-to-br from-violet-400 via-purple-600 to-fuchsia-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.95),0_0_24px_rgba(124,58,237,0.48)] transition duration-200 hover:scale-110 hover:shadow-[0_0_18px_rgba(192,132,252,1),0_0_34px_rgba(124,58,237,0.65)] active:scale-95">
-              <Plus size={25} strokeWidth={1.8} />
-            </span>
-            <span className="text-[10px] leading-none">Create</span>
-          </button>
-
-          {/* REQUESTS */}
-          <button
-            type="button"
-            onClick={() => navigate("/requests")}
-            aria-current={isActive("/requests") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
-              isActive("/requests")
-                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
-                : "text-slate-500 transition hover:text-violet-700"
-            }`}
-          >
-            <Heart
-              size={22}
-              strokeWidth={isActive("/requests") ? 2.3 : 1.8}
-              fill={isActive("/requests") ? "currentColor" : "none"}
-            />
-            <span className="text-[10px] leading-none">Requests</span>
-          </button>
-
-          {/* PROFILE */}
-          <button
-            type="button"
-            onClick={() => navigate("/profile")}
-            aria-current={isActive("/profile") ? "page" : undefined}
-            className={`flex h-full flex-col items-center justify-center gap-1 transition ${
-              isActive("/profile")
-                ? "text-violet-700 drop-shadow-[0_0_8px_rgba(139,92,246,0.28)]"
-                : "text-slate-500 transition hover:text-violet-700"
-            }`}
-          >
-            <User size={22} strokeWidth={isActive("/profile") ? 2.3 : 1.8} />
-            <span className="text-[10px] leading-none">Profile</span>
-          </button>
-        </div>
-      </nav>
+        <BottomNavbar
+        items={[
+            { label: "Home", path: "/student-home", icon: Home },
+            { label: "Search", path: "/search", icon: Search },
+            { label: "Requests", path: "/requests", icon: Heart },
+            { label: "Profile", path: "/profile", icon: User },
+        ]}
+        createPath="/create-post"
+        />           
     </div>
   );
 };
