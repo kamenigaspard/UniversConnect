@@ -9,6 +9,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { searchMessagingUsers, getMessagingState, createPrivateConversation, createConnectionRequest, createMessageRequest } from "../services/messaging/messagingService";
 import { getMessagingRule } from "../services/messaging/messagingPermissions";
 import MessageRequestModal from "../components/messages/MessageRequestModal";
+import BottomNavbar from "../components/BottomNavbar";
 
 function SearchPage() {
   const navigate = useNavigate();
@@ -228,6 +229,19 @@ function SearchPage() {
         onClose={() => setModal({ open: false, user: null, type: null })}
         onSubmit={handleModalSubmit}
       />
+            {/* ======================================================
+                FIXED BOTTOM NAVIGATION
+                Home | Search | Create | Requests | Profile
+                ====================================================== */}
+              <BottomNavbar
+              items={[
+                  { label: "Home", path: "/teacher-home", icon: Home },
+                  { label: "Search", path: "/search", icon: Search },
+                  { label: "Requests", path: "/requests", icon: Heart },
+                  { label: "Profile", path: "/profile", icon: User },
+              ]}
+              createPath="/create-post"
+              />   
     </div>
   );
 }

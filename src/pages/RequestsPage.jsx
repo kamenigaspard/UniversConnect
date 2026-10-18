@@ -28,6 +28,8 @@ import {
   getRequestSuggestions,
 } from "../services/messaging/messagingService";
 import { getMessagingRule } from "../services/messaging/messagingPermissions";
+import { useNavigate } from "react-router-dom";
+import BottomNavbar from "../components/BottomNavbar";
 
 export default function RequestPage() {
   const { user, profile } = useAuth();
@@ -357,6 +359,19 @@ export default function RequestPage() {
           )}
         </section>
       </div>
+            {/* ======================================================
+                FIXED BOTTOM NAVIGATION
+                Home | Search | Create | Requests | Profile
+                ====================================================== */}
+              <BottomNavbar
+              items={[
+                  { label: "Home", path: "/teacher-home", icon: Home },
+                  { label: "Search", path: "/search", icon: Search },
+                  { label: "Requests", path: "/requests", icon: Heart },
+                  { label: "Profile", path: "/profile", icon: User },
+              ]}
+              createPath="/create-post"
+              />   
     </div>
   );
 }

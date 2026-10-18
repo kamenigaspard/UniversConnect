@@ -777,7 +777,7 @@ const TeacherHome = () => {
           ====================================================== */}
         <BottomNavbar
         items={[
-            { label: "Home", path: "/student-home", icon: Home },
+            { label: "Home", path: "/teacher-home", icon: Home },
             { label: "Search", path: "/search", icon: Search },
             { label: "Requests", path: "/requests", icon: Heart },
             { label: "Profile", path: "/profile", icon: User },
