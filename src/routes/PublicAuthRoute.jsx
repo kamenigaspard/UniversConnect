@@ -1,79 +1,73 @@
+
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
+const ROLE_ROUTES = {
+  student: "/student-home",
+  teacher: "/teacher-home",
+  admin: "/admin-home",
+  super_admin: "/super-admin-home",
+};
+
 export default function PublicAuthRoute({ children }) {
-    const {
-        user,
-        profile,
-        loading
-    } = useAuth();
+  const { user, profile, loading } = useAuth();
 
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-center">
-                    <div className="text-4xl animate-pulse">
-                        ⏳
-                    </div>
-                    <p className="mt-4 text-gray-600">
-                        Restoring your session...
-                    </p>
-                </div>
-            </div>
-        );
-    }
+  // 1. Wait for Supabase session restoration
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--page-bg)]">
+        <div className="text-center">
+          <div className="text-4xl animate-pulse">⏳</div>
 
-    if (!user) {
-        return children;
-    }
+          <p className="mt-4 text-[var(--text-secondary)]">
+            Restoring your session...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-    if (!profile) {
-        return children;
-    }
+  // 2. Logged-out users can access Login and Signup
+  if (!user) {
+    return children;
+  }
 
-    if (profile.is_active === false) {
-        return children;
-    }
+  // 3. Authenticated user has no profile
+  if (!profile) {
+    return (
+      <Navigate
+        to="/account-unavailable"
+        replace
+      />
+    );
+  }
 
-    switch (profile.role) {
-        case "student":
-            return (
-                <Navigate
-                    to="/student-home"
-                    replace
-                />
-            );
+  // 4. Account is inactive
+  if (profile.is_active !== true) {
+    return (
+      <Navigate
+        to="/account-disabled"
+        replace
+      />
+    );
+  }
 
-        case "teacher":
-            return (
-                <Navigate
-                    to="/teacher-home"
-                    replace
-                />
-            );
+  // 5. Redirect according to database-assigned role
+  const destination = ROLE_ROUTES[profile.role];
 
-        case "admin":
-            return (
-                <Navigate
-                    to="/admin-home"
-                    replace
-                />
-            );
+  if (!destination) {
+    return (
+      <Navigate
+        to="/unauthorized"
+        replace
+      />
+    );
+  }
 
-        case "super_admin":
-            return (
-                <Navigate
-                    to="/super-admin-home"
-                    replace
-                />
-            );
-
-        default:
-            return (
-                <Navigate
-                    to="/unauthorized"
-                    replace
-                />
-            );
-    }
+  return (
+    <Navigate
+      to={destination}
+      replace
+    />
+  );
 }

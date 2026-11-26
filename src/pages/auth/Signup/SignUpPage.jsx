@@ -1,37 +1,15 @@
+
 import { useState } from "react";
 import SignupAccount from "./SignupAccount";
 import SignupUniversity from "./SignupUniversity";
 import SignupProfile from "./SignupProfile";
 
-/*
- * Signup.jsx is the parent component for the complete signup process.
- *
- * Instead of asking the user to fill everything on one long page,
- * we divide registration into three smaller and easier steps:
- *
- * STEP 1 → Account information
- * STEP 2 → University information
- * STEP 3 → Profile information
- *
- * All information is kept in this component so that moving between
- * steps does not lose anything the user has already entered.
- */
-
 const Signup = () => {
-  /*
-   * Current signup step.
-   *
-   * 1 = Account
-   * 2 = University
-   * 3 = Profile
-   */
   const [step, setStep] = useState(1);
 
   /*
-   * All information collected during signup.
-   *
-   * avatarFile is deliberately kept as a File object in memory.
-   * We will upload it only after the user completes the final step.
+   * All signup information is managed here.
+   * The role and school are assigned by the database.
    */
   const [signupData, setSignupData] = useState({
     fullName: "",
@@ -39,25 +17,13 @@ const Signup = () => {
     password: "",
     confirmPassword: "",
 
-    role: "student",
-    schoolId: "",
+    matricule: "",
     username: "",
 
     bio: "",
     avatarFile: null,
   });
 
-  /*
-   * Update only the fields supplied by the current signup page.
-   *
-   * Example:
-   *
-   * updateSignupData({
-   *   fullName: "John Doe"
-   * })
-   *
-   * The other signup information remains unchanged.
-   */
   const updateSignupData = (newData) => {
     setSignupData((previousData) => ({
       ...previousData,
@@ -65,37 +31,23 @@ const Signup = () => {
     }));
   };
 
-  /*
-   * Move to the next signup step.
-   */
   const nextStep = () => {
-    setStep((previousStep) => previousStep + 1);
+    setStep((previousStep) => Math.min(previousStep + 1, 3));
   };
 
-  /*
-   * Move back to the previous signup step.
-   */
   const previousStep = () => {
-    setStep((previousStep) => previousStep - 1);
+    setStep((previousStep) => Math.max(previousStep - 1, 1));
   };
 
-  /*
-   * Display the appropriate signup component.
-   */
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
       <div className="mx-auto w-full max-w-md">
 
-        {/* --------------------------------------------------
-            Signup progress indicator
-        -------------------------------------------------- */}
+        {/* Signup progress indicator */}
 
         <div className="mb-8 flex items-center justify-between">
           {[1, 2, 3].map((number) => (
-            <div
-              key={number}
-              className="flex items-center"
-            >
+            <div key={number} className="flex items-center">
               <div
                 className={`flex h-10 w-10 items-center justify-center rounded-full font-semibold ${
                   step >= number
@@ -110,7 +62,7 @@ const Signup = () => {
                 <div
                   className={`mx-2 h-1 w-16 ${
                     step > number
-                      ? "bg-blue-600"
+                      ? "bg-purple-600"
                       : "bg-gray-200"
                   }`}
                 />
@@ -119,9 +71,7 @@ const Signup = () => {
           ))}
         </div>
 
-        {/* --------------------------------------------------
-            STEP 1
-        -------------------------------------------------- */}
+        {/* STEP 1: Account */}
 
         {step === 1 && (
           <SignupAccount
@@ -131,9 +81,7 @@ const Signup = () => {
           />
         )}
 
-        {/* --------------------------------------------------
-            STEP 2
-        -------------------------------------------------- */}
+        {/* STEP 2: University identification */}
 
         {step === 2 && (
           <SignupUniversity
@@ -144,9 +92,7 @@ const Signup = () => {
           />
         )}
 
-        {/* --------------------------------------------------
-            STEP 3
-        -------------------------------------------------- */}
+        {/* STEP 3: Profile */}
 
         {step === 3 && (
           <SignupProfile
@@ -155,6 +101,7 @@ const Signup = () => {
             previousStep={previousStep}
           />
         )}
+
       </div>
     </div>
   );

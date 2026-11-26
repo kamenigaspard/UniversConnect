@@ -1,12 +1,13 @@
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Mail, Lock, User, ArrowRight } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  User,
+  ArrowRight,
+} from "lucide-react";
 
-/*
- * STEP 1
- *
- * Collect the basic authentication information.
- */
 const SignupAccount = ({
   signupData,
   updateSignupData,
@@ -14,58 +15,39 @@ const SignupAccount = ({
 }) => {
   const [error, setError] = useState("");
 
-  /*
-   * Validate the first step before allowing the user
-   * to continue.
-   */
   const handleNext = (event) => {
     event.preventDefault();
-
     setError("");
 
-    /*
-     * Make sure the full name was provided.
-     */
-    if (!signupData.fullName.trim()) {
+    if (!signupData.fullName?.trim()) {
       setError("Please enter your full name.");
       return;
     }
 
-    /*
-     * Make sure the email was provided.
-     */
-    if (!signupData.email.trim()) {
-      setError("Please enter your email address.");
+    if (!signupData.email?.trim()) {
+      setError("Please enter your official university email.");
       return;
     }
 
-    /*
-     * Basic password validation.
-     */
     if (signupData.password.length < 6) {
       setError("Password must contain at least 6 characters.");
       return;
     }
 
-    /*
-     * Make sure both passwords match.
-     */
-    if (signupData.password !== signupData.confirmPassword) {
+    if (
+      signupData.password !== signupData.confirmPassword
+    ) {
       setError("Passwords do not match.");
       return;
     }
 
-    /*
-     * Everything is valid.
-     * Move to step 2.
-     */
     nextStep();
   };
 
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-sm">
+    <div className="rounded-2xl bg-[var(--page-bg)] p-6 shadow-sm">
 
-      <div className="mb-6">
+      <div className="mb-6 border-[var(--border)] bg-[var(--surface)]" >
         <h1 className="text-2xl font-bold text-gray-900">
           Create your account
         </h1>
@@ -105,16 +87,18 @@ const SignupAccount = ({
                 })
               }
               placeholder="John Doe"
-              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-blue-500"
+              autoComplete="name"
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-purple-500"
             />
           </div>
         </div>
 
-        {/* Email */}
+        {/* Official university email */}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
-            Email address
+            Official university email
           </label>
 
           <div className="relative">
@@ -131,10 +115,16 @@ const SignupAccount = ({
                   email: event.target.value,
                 })
               }
-              placeholder="john@example.com"
-              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-blue-500"
+              placeholder="yourname@university.edu"
+              autoComplete="email"
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-purple-500"
             />
           </div>
+
+          <p className="mt-1 text-xs text-gray-500">
+            Use the email address assigned to you by your university.
+          </p>
         </div>
 
         {/* Password */}
@@ -159,7 +149,9 @@ const SignupAccount = ({
                 })
               }
               placeholder="Create a password"
-              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-blue-500"
+              autoComplete="new-password"
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-purple-500"
             />
           </div>
         </div>
@@ -186,7 +178,9 @@ const SignupAccount = ({
                 })
               }
               placeholder="Repeat your password"
-              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-blue-500"
+              autoComplete="new-password"
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 outline-none focus:border-purple-500"
             />
           </div>
         </div>

@@ -185,7 +185,7 @@ export async function getMessagingState(a,b){
     const active=await getActiveMessagingSession(currentUser.id,targetUser.id);
     if(active) return {rule,targetUser,activeSession:active,canMessage:true,status:"session_active"};
     const pendingOut=await getPendingRequest({senderId:currentUser.id,receiverId:targetUser.id,type:"message",direction:"outgoing"});
-    const pendingIn=!pendingOut? await getPendingRequest({senderId:currentUser.id,receiverId:targetUser.id,type:"message",direction:"incoming"}):null;
+    const pendingIn=!pendingOut? await getPendingRequest({senderId:currentUser.id,receiverId:targetUser.id,type:"message",direction:"incoming"}) : null;
     const pending=pendingOut||pendingIn;
     if(pending) return {rule,targetUser,pendingRequest:pending,pendingRequestDirection:pending.sender_id===currentUser.id?"outgoing":"incoming",canMessage:false,status:"request_pending"};
     // check expired
@@ -209,11 +209,18 @@ export const subscribeToUserConversations = (userId, callback) => {
   return {unsubscribe:()=>{ try{supabase.removeChannel(channel);}catch{} }};
 };
 export const subscribeToConversationMessages = (conversationId, callback) => {
-  if(!conversationId) return {unsubscribe:()=>{}};
+  if(!conversationId) return {
+    unsubscribe:()=>{}
+  };
   const channel=supabase.channel(`msgs-${conversationId}-${Date.now()}`)
    .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:`conversation_id=eq.${conversationId}`},(p)=>{ if(p?.new) callback(p.new); })
    .subscribe();
-  return {unsubscribe:()=>{ try{supabase.removeChannel(channel);}catch{} }};
+  return {unsubscribe:()=>{ 
+    try{
+      supabase.removeChannel(channel);
+    }catch{} 
+  }
+ };
 };
 
 // Media
@@ -235,7 +242,13 @@ export async function getRequestSuggestions(currentUser){
 }
 export async function findConversationWithUser({currentUserId,targetUserId}){
   if(!currentUserId||!targetUserId) return null;
-  const {data,error}=await supabase.from("conversations").select("*").eq("type","direct").or(`and(participant_one_id.eq.${currentUserId},participant_two_id.eq.${targetUserId}),and(participant_one_id.eq.${targetUserId},participant_two_id.eq.${currentUserId})`).limit(1).maybeSingle();
-  throwIfError(error,"Unable to find"); return data||null;
+
+  const {data,error}=await supabase.from("conversations")
+  .select("*")
+  .eq("type","direct")
+  .or(`and(participant_one_id.eq.${currentUserId},participant_two_id.eq.${targetUserId}),and(participant_one_id.eq.${targetUserId},participant_two_id.eq.${currentUserId})`).limit(1).maybeSingle();
+  throwIfError(error,"Unable to find"); 
+  return data||null;
 }
-export async function deleteMessage({messageId,currentUserId}){ const {data,error}=await supabase.from("messages").update({is_deleted:true}).eq("id",messageId).eq("sender_id",currentUserId).select().single(); throwIfError(error,"Unable to delete"); return data; }
+export async function deleteMessage({messageId,currentUserId}){ 
+  const {data,error}=await supabase.from("messages").update({is_deleted:true}).eq("id",messageId).eq("sender_id",currentUserId).select().single(); throwIfError(error,"Unable to delete"); return data; }

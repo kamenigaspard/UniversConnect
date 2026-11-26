@@ -1,145 +1,138 @@
+
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
-/*
- * ============================================================
- * PROTECTED ROUTE
- * ============================================================
- *
- * This component protects pages that require authentication.
- *
- * Examples:
- *
- * /student-home
- * /teacher-home
- * /admin-home
- * /super-admin-home
- * /messages
- * /notifications
- * /profile
- * /settings
- *
- * It also supports role-based authorization.
- * ============================================================
- */
+const ROLE_ROUTES = {
+  student: "/student-home",
+  teacher: "/teacher-home",
+  admin: "/admin-home",
+  super_admin: "/super-admin-home",
+};
 
 export default function ProtectedRoute({
-    children,
-    allowedRoles
+  children,
+  allowedRoles,
+  allowBanned = false,
 }) {
+  const {
+    user,
+    profile,
+    loading,
+    ban,
+    banLoading,
+    banCheckError,
+  } = useAuth();
 
-    const {
-        user,
-        profile,
-        loading
-    } = useAuth();
+  // 1. Wait for authentication restoration.
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--page-bg)]">
+        <div className="text-center">
+          <div className="text-4xl animate-pulse">⏳</div>
+          <p className="mt-4 text-[var(--text-secondary)]">
+            Restoring your session...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-    /*
-     * --------------------------------------------------------
-     * STEP 1
-     * Wait for Supabase session restoration.
-     * --------------------------------------------------------
-     *
-     * This is VERY important.
-     *
-     * When the browser starts, Supabase may need a moment to
-     * restore the existing session from browser storage.
-     *
-     * We don't want to redirect the user to login during
-     * that moment.
-     */
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-center">
+  // 2. User is not authenticated.
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
-                    <div className="text-4xl animate-pulse">
-                        ⏳
-                    </div>
+  // 3. Wait for ban verification.
+  if (banLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--page-bg)]">
+        <p className="text-[var(--text-secondary)]">
+          Verifying your account status...
+        </p>
+      </div>
+    );
+  }
 
-                    <p className="mt-4 text-gray-600">
-                        Restoring your session...
-                    </p>
+  // 4. Fail safely if ban status cannot be verified.
+  if (banCheckError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--page-bg)] px-4">
+        <div className="max-w-md text-center">
+          <h2 className="text-xl font-bold text-[var(--text-primary)]">
+            Unable to verify your account
+          </h2>
 
-                </div>
-            </div>
-        );
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">
+            We couldn't verify your account suspension status.
+            Please check your internet connection and try again.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-lg bg-purple-600 px-5 py-3 font-semibold text-white hover:bg-purple-700"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 5. Authenticated user has no profile.
+  if (!profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--page-bg)] px-4">
+        <div className="max-w-md text-center">
+          <h2 className="text-xl font-bold text-[var(--text-primary)]">
+            Account profile unavailable
+          </h2>
+
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">
+            We could not load your university profile.
+            Please try again or contact the university administrator.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const dashboard = ROLE_ROUTES[profile.role];
+
+  // 6. Validate role.
+  if (!dashboard) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  // 7. Special access for the account-banned page.
+  if (allowBanned) {
+    // Only currently banned users can access this page.
+    if (ban) {
+      return children;
     }
 
-    /*
-     * --------------------------------------------------------
-     * STEP 2
-     * No authenticated user.
-     * --------------------------------------------------------
-     */
-    if (!user) {
-        return (
-            <Navigate
-                to="/login"
-                replace
-            />
-        );
-    }
+    // If the ban has been lifted, return to the dashboard.
+    return <Navigate to={dashboard} replace />;
+  }
 
-    /*
-     * --------------------------------------------------------
-     * STEP 3
-     * User exists but profile could not be loaded.
-     * --------------------------------------------------------
-     */
-    if (!profile) {
-        return (
-            <Navigate
-                to="/login"
-                replace
-            />
-        );
-    }
+  // 8. Redirect banned users away from normal protected pages.
+  if (ban) {
+    return <Navigate to="/account-banned" replace />;
+  }
 
-    /*
-     * --------------------------------------------------------
-     * STEP 4
-     * Check whether the account is active.
-     * --------------------------------------------------------
-     */
-    if (profile.is_active === false) {
-        return (
-            <Navigate
-                to="/login"
-                replace
-            />
-        );
-    }
+  // 9. Account is inactive.
+  if (profile.is_active !== true) {
+    return <Navigate to="/account-disabled" replace />;
+  }
 
-    /*
-     * --------------------------------------------------------
-     * STEP 5
-     * Check role permissions.
-     * --------------------------------------------------------
-     *
-     * Example:
-     *
-     * <ProtectedRoute allowedRoles={["student"]}>
-     *
-     * Only students can access the page.
-     */
-    if (
-        allowedRoles &&
-        !allowedRoles.includes(profile.role)
-    ) {
-        return (
-            <Navigate
-                to="/unauthorized"
-                replace
-            />
-        );
-    }
+  // 10. Check role authorization.
+  if (
+    allowedRoles &&
+    !allowedRoles.includes(profile.role)
+  ) {
+    return <Navigate to={dashboard} replace />;
+  }
 
-    /*
-     * --------------------------------------------------------
-     * STEP 6
-     * User is authenticated and authorized.
-     * --------------------------------------------------------
-     */
-    return children;
+  // 11. Authorized.
+  return children;
 }

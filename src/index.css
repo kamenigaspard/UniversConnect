@@ -126,16 +126,7 @@ body {
 
   color: var(--text-primary);
   background:
-    radial-gradient(
-      circle at 10% 0%,
-      rgba(168, 85, 247, 0.09),
-      transparent 35%
-    ),
-    radial-gradient(
-      circle at 100% 80%,
-      rgba(217, 70, 239, 0.05),
-      transparent 32%
-    ),
+
     var(--page-bg);
 
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
@@ -363,6 +354,21 @@ select:disabled {
   border-color: var(--border-color);
 }
 
+.form-input {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: var(--page-bg);
+  padding: 0.8rem 0.9rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+}
 /* =========================================================
    SCROLLBAR
 ========================================================= */

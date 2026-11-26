@@ -102,7 +102,7 @@ function LandingPage() {
 
           <button
             type="button"
-            onClick={() => navigation("/signup")}
+            onClick={() => navigation("/super-admin-home")}
             className="relative inline-flex min-h-14 items-center justify-center gap-3 overflow-hidden rounded-full border border-white/55 bg-gradient-to-r from-violet-600/95 via-purple-600/95 to-fuchsia-600/95 px-8 py-4 font-semibold text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.65),inset_0_-3px_8px_rgba(46,16,101,0.35),0_0_16px_rgba(192,132,252,0.75),0_0_42px_rgba(124,58,237,0.40)] backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:scale-[1.03] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.75),0_0_24px_rgba(216,180,254,0.95),0_0_60px_rgba(168,85,247,0.65)] active:scale-[0.98]"
           >
             {/* Glossy highlight */}

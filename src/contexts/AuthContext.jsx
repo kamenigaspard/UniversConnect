@@ -1,8 +1,10 @@
+
 import {
   createContext,
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 
 import { supabase } from "../lib/supabase";
@@ -14,14 +16,20 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Ban status
+  const [ban, setBan] = useState(null);
+  const [banLoading, setBanLoading] = useState(false);
+  const [banCheckError, setBanCheckError] = useState(false);
+
   /* =========================================================
      GET PROFILE
+
+     Private fields such as email and matricule are deliberately
+     excluded. Use user.email from Supabase Auth when needed.
   ========================================================= */
 
   const getProfile = async (userId) => {
-    if (!userId) {
-      return null;
-    }
+    if (!userId) return null;
 
     const { data, error } = await supabase
       .from("profiles")
@@ -29,65 +37,107 @@ export function AuthProvider({ children }) {
         id,
         full_name,
         username,
-        email,
         avatar_url,
         bio,
         role,
         school_id,
         is_active,
         created_at,
-        updated_at
+        updated_at,
+        preferred_language,
+        preferred_theme
       `)
       .eq("id", userId)
       .maybeSingle();
 
     if (error) {
       console.error("Error loading profile:", error);
-
-      /*
-       * IMPORTANT:
-       *
-       * Do not automatically sign the user out because
-       * of a temporary database/profile error.
-       */
       throw error;
     }
 
     if (!data) {
-      console.warn(
-        "No profile found for authenticated user:",
-        userId
-      );
-
       setProfile(null);
-
       return null;
     }
 
     setProfile(data);
-
     return data;
   };
+
+  /* =========================================================
+     CHECK ACTIVE USER BAN
+
+     Only bans that:
+     - Belong to the current user.
+     - Are active.
+     - Have already started.
+     - Have not expired.
+
+     are considered active.
+  ========================================================= */
+
+  const checkUserBan = useCallback(async (userId) => {
+    if (!userId) {
+      setBan(null);
+      setBanCheckError(false);
+      setBanLoading(false);
+      return null;
+    }
+
+    setBanLoading(true);
+    setBanCheckError(false);
+
+    try {
+      const now = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from("bans")
+        .select(`
+          id,
+          user_id,
+          duration,
+          reason,
+          starts_at,
+          ends_at,
+          is_active
+        `)
+        .eq("user_id", userId)
+        .eq("is_active", true)
+        .lte("starts_at", now)
+        .gt("ends_at", now)
+        .order("starts_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      setBan(data || null);
+
+      return data || null;
+    } catch (error) {
+      console.error("Ban verification failed:", error);
+      setBanCheckError(true);
+
+      return null;
+    } finally {
+      setBanLoading(false);
+    }
+  }, []);
 
   /* =========================================================
      UPLOAD PROFILE IMAGE
   ========================================================= */
 
-  const uploadProfileImage = async (
-    userId,
-    avatarFile
-  ) => {
-    if (!userId || !avatarFile) {
-      return null;
-    }
+  const uploadProfileImage = async (userId, avatarFile) => {
+    if (!userId || !avatarFile) return null;
 
     if (
       !avatarFile.type ||
       !avatarFile.type.startsWith("image/")
     ) {
-      throw new Error(
-        "Please select a valid image file."
-      );
+      throw new Error("Please select a valid image file.");
     }
 
     const maxSize = 5 * 1024 * 1024;
@@ -99,66 +149,37 @@ export function AuthProvider({ children }) {
     }
 
     const fileExtension =
-      avatarFile.name
-        .split(".")
-        .pop()
-        ?.toLowerCase() || "jpg";
+      avatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
 
     const fileName = `avatar_${Date.now()}.${fileExtension}`;
-
-    /*
-     * Storage path:
-     *
-     * profile-media/
-     *    USER_ID/
-     *       avatar_timestamp.jpg
-     */
     const filePath = `${userId}/${fileName}`;
 
-    const { error: uploadError } =
-      await supabase.storage
-        .from("profile-media")
-        .upload(
-          filePath,
-          avatarFile,
-          {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: avatarFile.type,
-          }
-        );
+    const { error: uploadError } = await supabase.storage
+      .from("profile-media")
+      .upload(filePath, avatarFile, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: avatarFile.type,
+      });
 
     if (uploadError) {
-      console.error(
-        "Profile image upload error:",
-        uploadError
-      );
-
+      console.error("Profile image upload error:", uploadError);
       throw uploadError;
     }
 
-    const {
-      data: publicUrlData
-    } = supabase.storage
+    const { data: publicUrlData } = supabase.storage
       .from("profile-media")
       .getPublicUrl(filePath);
 
-    const avatarUrl =
-      publicUrlData?.publicUrl;
+    const avatarUrl = publicUrlData?.publicUrl;
 
     if (!avatarUrl) {
-      throw new Error(
-        "Unable to generate profile image URL."
-      );
+      throw new Error("Unable to generate profile image URL.");
     }
 
-    const {
-      error: profileUpdateError,
-    } = await supabase
+    const { error: profileUpdateError } = await supabase
       .from("profiles")
-      .update({
-        avatar_url: avatarUrl,
-      })
+      .update({ avatar_url: avatarUrl })
       .eq("id", userId);
 
     if (profileUpdateError) {
@@ -166,18 +187,11 @@ export function AuthProvider({ children }) {
         "Error saving avatar URL:",
         profileUpdateError
       );
-
       throw profileUpdateError;
     }
 
-    /*
-     * Update local profile state if it belongs to
-     * the currently authenticated user.
-     */
     setProfile((currentProfile) => {
-      if (
-        currentProfile?.id === userId
-      ) {
+      if (currentProfile?.id === userId) {
         return {
           ...currentProfile,
           avatar_url: avatarUrl,
@@ -196,242 +210,174 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let mounted = true;
-    let initialSessionLoaded = false;
 
-    /* -------------------------------------------------------
-       LOAD INITIAL SESSION
-    ------------------------------------------------------- */
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
+      if (!session?.user) {
+        setUser(null);
+        setProfile(null);
+        setBan(null);
+        setBanCheckError(false);
+        setBanLoading(false);
+        setLoading(false);
+        return;
+      }
+
+      setUser(session.user);
+
+      /*
+       * Do not query Supabase inside the auth callback.
+       * Refresh the profile separately when user details change.
+       */
+      if (event === "USER_UPDATED") {
+        setTimeout(async () => {
+          if (!mounted) return;
+
+          try {
+            await getProfile(session.user.id);
+          } catch (error) {
+            console.error(
+              "Auth state profile refresh failed:",
+              error
+            );
+          }
+        }, 0);
+      }
+    });
 
     const loadInitialSession = async () => {
       try {
-        if (mounted) {
-          setLoading(true);
-        }
+        setLoading(true);
 
         const {
           data: { session },
-          error: sessionError
+          error,
         } = await supabase.auth.getSession();
 
-        if (sessionError) {
-          throw sessionError;
-        }
+        if (error) throw error;
+        if (!mounted) return;
 
-        if (!mounted) {
-          return;
-        }
-
-        /*
-         * No authenticated session.
-         */
         if (!session?.user) {
           setUser(null);
           setProfile(null);
-
+          setBan(null);
+          setBanCheckError(false);
+          setBanLoading(false);
           return;
         }
 
-        /*
-         * IMPORTANT:
-         *
-         * Set the authenticated user immediately.
-         */
         setUser(session.user);
 
         try {
-          const userProfile =
-            await getProfile(
-              session.user.id
-            );
+          const userProfile = await getProfile(session.user.id);
 
-          if (!mounted) {
-            return;
-          }
+          if (!mounted) return;
 
-          /*
-           * Auth user exists but profile doesn't.
-           */
           if (!userProfile) {
-            console.error(
-              "Authenticated user has no profile."
-            );
-
+            console.warn("Authenticated user has no profile.");
             setProfile(null);
-
-            /*
-             * Do NOT sign the user out here.
-             */
             return;
           }
 
-          /*
-           * Check whether the profile is active.
-           */
-          if (
-            userProfile.is_active === false
-          ) {
-            console.warn(
-              "User profile is inactive."
-            );
-
-            /*
-             * Only inactive accounts are signed out.
-             */
+          if (userProfile.is_active === false) {
             await supabase.auth.signOut();
 
             if (mounted) {
               setUser(null);
               setProfile(null);
+              setBan(null);
             }
 
             return;
           }
 
-          /*
-           * Make absolutely sure the profile is stored
-           * in context.
-           */
           setProfile(userProfile);
+
+          // Verify ban status before completing session restoration.
+          await checkUserBan(session.user.id);
+
         } catch (profileError) {
           console.error(
             "Profile restoration failed:",
             profileError
           );
 
-          /*
-           * IMPORTANT:
-           *
-           * Keep the authentication session alive.
-           *
-           * A database/profile problem must not create
-           * an authentication sign-out loop.
-           */
-          if (mounted) {
-            setProfile(null);
-          }
+          if (mounted) setProfile(null);
         }
       } catch (error) {
-        console.error(
-          "Session loading error:",
-          error
-        );
+        console.error("Session loading error:", error);
 
         if (mounted) {
           setUser(null);
           setProfile(null);
         }
       } finally {
-        initialSessionLoaded = false;
-
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       }
     };
 
     loadInitialSession();
 
-    /* -------------------------------------------------------
-       AUTH STATE LISTENER
-    ------------------------------------------------------- */
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) {
-          return;
-        }
-
-        /*
-         * No session.
-         */
-        if (!session?.user) {
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-
-          return;
-        }
-
-        /*
-         * ALWAYS keep the authenticated Supabase user
-         * in React state.
-         */
-        setUser(session.user);
-
-        /*
-         * IMPORTANT:
-         *
-         * Do not perform Supabase database queries directly
-         * inside onAuthStateChange.
-         *
-         * Supabase authentication events can fire several
-         * times during a session refresh.
-         */
-        if (
-          initialSessionLoaded &&
-          (
-            event === "SIGNED_IN" ||
-            event === "USER_UPDATED"
-          )
-        ) {
-          setTimeout(async () => {
-            if (!mounted) {
-              return;
-            }
-
-            try {
-              const userProfile =
-                await getProfile(
-                  session.user.id
-                );
-
-              if (!mounted) {
-                return;
-              }
-
-              if (
-                userProfile &&
-                userProfile.is_active !== false
-              ) {
-                setProfile(userProfile);
-              }
-            } catch (profileError) {
-              console.error(
-                "Auth state profile refresh failed:",
-                profileError
-              );
-
-              /*
-               * Do not sign out.
-               */
-            }
-          }, 0);
-        }
-      }
-    );
-
-    /* -------------------------------------------------------
-       CLEANUP
-    ------------------------------------------------------- */
-
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [checkUserBan]);
+
+  /* =========================================================
+     REALTIME BAN MONITORING
+
+     Detects new bans and lifted bans while the user
+     is already logged in.
+  ========================================================= */
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`user-ban-status-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bans",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          checkUserBan(user.id);
+        }
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.error(
+            "Unable to subscribe to ban status changes."
+          );
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, checkUserBan]);
 
   /* =========================================================
      SIGN UP
+
+     The database assigns role and school_id.
+     The database trigger creates the profile.
+
+     Never insert or upsert profiles here.
   ========================================================= */
 
   const signUp = async ({
     email,
     password,
+    matricule,
     fullName,
-    role,
-    schoolId,
     username,
     bio,
     avatarFile,
@@ -441,58 +387,34 @@ export function AuthProvider({ children }) {
     ------------------------------------------------------- */
 
     if (!email?.trim()) {
-      throw new Error(
-        "Email is required."
-      );
+      throw new Error("Official email is required.");
     }
 
     if (!password) {
-      throw new Error(
-        "Password is required."
-      );
+      throw new Error("Password is required.");
+    }
+
+    if (!matricule?.trim()) {
+      throw new Error("Matricule is required.");
     }
 
     if (!fullName?.trim()) {
-      throw new Error(
-        "Enter your full name."
-      );
-    }
-
-    const validRoles = [
-      "student",
-      "teacher",
-      "admin",
-    ];
-
-    if (!validRoles.includes(role)) {
-      throw new Error(
-        "Please select a valid account role."
-      );
-    }
-
-    if (!schoolId) {
-      throw new Error(
-        "Please select your school."
-      );
+      throw new Error("Enter your full name.");
     }
 
     if (!username?.trim()) {
-      throw new Error(
-        "Please choose a username."
-      );
+      throw new Error("Please choose a username.");
     }
 
-    const cleanUsername =
-      username.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanMatricule = matricule.trim().toUpperCase();
+    const cleanFullName = fullName.trim();
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanBio = bio?.trim() || "";
 
-    const usernameRegex =
-      /^[a-z0-9_]+$/;
+    const usernameRegex = /^[a-z0-9_]+$/;
 
-    if (
-      !usernameRegex.test(
-        cleanUsername
-      )
-    ) {
+    if (!usernameRegex.test(cleanUsername)) {
       throw new Error(
         "Username can only contain letters, numbers and underscores."
       );
@@ -500,29 +422,25 @@ export function AuthProvider({ children }) {
 
     /* -------------------------------------------------------
        CREATE SUPABASE AUTH USER
+
+       handle_new_user() automatically:
+       - validates the matricule
+       - checks the official email
+       - checks the assigned school
+       - assigns the trusted role and school
+       - creates the profile
+       - claims the matricule
     ------------------------------------------------------- */
 
-    const {
-      data,
-      error,
-    } = await supabase.auth.signUp({
-      email: email.trim(),
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
       password,
       options: {
         data: {
-          full_name:
-            fullName.trim(),
-
-          role,
-
-          school_id:
-            schoolId,
-
-          username:
-            cleanUsername,
-
-          bio:
-            bio?.trim() || "",
+          matricule: cleanMatricule,
+          full_name: cleanFullName,
+          username: cleanUsername,
+          bio: cleanBio,
         },
       },
     });
@@ -532,123 +450,78 @@ export function AuthProvider({ children }) {
     }
 
     if (!data?.user) {
-      throw new Error(
-        "Unable to create your account."
-      );
+      throw new Error("Unable to create your account.");
     }
 
-    const userId =
-      data.user.id;
+    let createdProfile = null;
 
-    /* -------------------------------------------------------
-       CREATE / UPDATE PROFILE
-    ------------------------------------------------------- */
-
-    const {
-      data: createdProfile,
-      error: profileError,
-    } = await supabase
-      .from("profiles")
-      .upsert(
-        {
-          id: userId,
-
-          full_name:
-            fullName.trim(),
-
-          username:
-            cleanUsername,
-
-          email:
-            email.trim(),
-
-          bio:
-            bio?.trim() || null,
-
-          role,
-
-          school_id:
-            schoolId,
-
-          is_active: true,
-        },
-        {
-          onConflict: "id",
-        }
-      )
-      .select(`
-        id,
-        full_name,
-        username,
-        email,
-        avatar_url,
-        bio,
-        role,
-        school_id,
-        is_active,
-        created_at,
-        updated_at
-      `)
-      .single();
-
-    if (profileError) {
-      console.error(
-        "Profile creation error:",
-        profileError
-      );
-
-      throw profileError;
-    }
-
-    let finalProfile =
-      createdProfile;
-
-    /* -------------------------------------------------------
-       OPTIONAL PROFILE IMAGE
-    ------------------------------------------------------- */
-
-    if (
-      avatarFile &&
-      data.session
-    ) {
-      try {
-        const avatarUrl =
-          await uploadProfileImage(
-            userId,
-            avatarFile
-          );
-
-        finalProfile = {
-          ...createdProfile,
-          avatar_url:
-            avatarUrl,
-        };
-      } catch (avatarError) {
-        console.error(
-          "Profile image setup failed:",
-          avatarError
-        );
-
-        /*
-         * Do not fail account creation just because
-         * the optional avatar upload failed.
-         */
-      }
-    }
-
-    /* -------------------------------------------------------
-       IMPORTANT AUTH STATE UPDATE
-    ------------------------------------------------------- */
-
+    /*
+     * When Supabase returns a session, load the profile
+     * that the database trigger has already created.
+     */
     if (data.session) {
       setUser(data.user);
-      setProfile(finalProfile);
-      setLoading(false);
+
+      try {
+        createdProfile = await getProfile(data.user.id);
+
+        if (!createdProfile) {
+          throw new Error(
+            "Your account was created, but its profile could not be found. Please contact support."
+          );
+        }
+
+        if (createdProfile.is_active === false) {
+          await supabase.auth.signOut();
+          setUser(null);
+          setProfile(null);
+
+          throw new Error(
+            "Your account is currently inactive."
+          );
+        }
+
+        /*
+         * Optional avatar upload.
+         * An avatar failure does not undo account creation.
+         */
+        if (avatarFile) {
+          try {
+            const avatarUrl = await uploadProfileImage(
+              data.user.id,
+              avatarFile
+            );
+
+            createdProfile = {
+              ...createdProfile,
+              avatar_url: avatarUrl,
+            };
+          } catch (avatarError) {
+            console.error(
+              "Profile image setup failed:",
+              avatarError
+            );
+          }
+        }
+
+        setProfile(createdProfile);
+
+        // Verify ban status after signup.
+        await checkUserBan(data.user.id);
+
+      } catch (profileError) {
+        console.error(
+          "Profile loading after signup failed:",
+          profileError
+        );
+
+        throw profileError;
+      }
     }
 
     return {
       ...data,
-      profile: finalProfile,
+      profile: createdProfile,
     };
   };
 
@@ -656,63 +529,44 @@ export function AuthProvider({ children }) {
      SIGN IN
   ========================================================= */
 
-  const signIn = async ({
-    email,
-    password,
-  }) => {
-    if (!email || !password) {
-      throw new Error(
-        "Email and password are required."
-      );
+  const signIn = async ({ email, password }) => {
+    if (!email?.trim() || !password) {
+      throw new Error("Email and password are required.");
     }
 
-    /* -------------------------------------------------------
-       AUTHENTICATE
-    ------------------------------------------------------- */
-
-    const {
-      data,
-      error,
-    } = await supabase.auth.signInWithPassword(
-      {
-        email: email.trim(),
+    const { data, error } = await supabase.auth
+      .signInWithPassword({
+        email: email.trim().toLowerCase(),
         password,
-      }
-    );
+      });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     if (!data?.user) {
-      throw new Error(
-        "Unable to retrieve your account."
-      );
+      throw new Error("Unable to retrieve your account.");
     }
 
-    /* -------------------------------------------------------
-       LOAD PROFILE
-    ------------------------------------------------------- */
+    setUser(data.user);
 
-    const userProfile =
-      await getProfile(
-        data.user.id
-      );
+    let userProfile;
+
+    try {
+      userProfile = await getProfile(data.user.id);
+    } catch (profileError) {
+      /*
+       * Keep the authentication session alive if there is
+       * a temporary profile/database error.
+       */
+      throw profileError;
+    }
 
     if (!userProfile) {
       await supabase.auth.signOut();
-
       setUser(null);
       setProfile(null);
 
-      throw new Error(
-        "Your profile could not be found."
-      );
+      throw new Error("Your profile could not be found.");
     }
-
-    /* -------------------------------------------------------
-       VALIDATE ROLE
-    ------------------------------------------------------- */
 
     const validRoles = [
       "student",
@@ -721,57 +575,33 @@ export function AuthProvider({ children }) {
       "super_admin",
     ];
 
-    if (
-      !validRoles.includes(
-        userProfile.role
-      )
-    ) {
+    if (!validRoles.includes(userProfile.role)) {
       await supabase.auth.signOut();
-
       setUser(null);
       setProfile(null);
 
-      throw new Error(
-        "Your account has an invalid role."
-      );
+      throw new Error("Your account has an invalid role.");
     }
 
-    /* -------------------------------------------------------
-       VALIDATE ACTIVE STATUS
-    ------------------------------------------------------- */
-
-    if (
-      userProfile.is_active === false
-    ) {
+    if (userProfile.is_active === false) {
       await supabase.auth.signOut();
-
       setUser(null);
       setProfile(null);
 
-      throw new Error(
-        "Your account has been deactivated."
-      );
+      throw new Error("Your account has been deactivated.");
     }
-
-    /* -------------------------------------------------------
-       CRITICAL FIX
-    ------------------------------------------------------- */
-
-    /*
-     * The old version returned the user/profile here but
-     * did not explicitly update React state.
-     *
-     * That could cause RequestsPage and MessagesPage to
-     * temporarily receive a null user.
-     */
 
     setUser(data.user);
     setProfile(userProfile);
     setLoading(false);
 
+    // Check whether the account has an active ban.
+    const activeBan = await checkUserBan(data.user.id);
+
     return {
       user: data.user,
       profile: userProfile,
+      ban: activeBan,
     };
   };
 
@@ -780,16 +610,15 @@ export function AuthProvider({ children }) {
   ========================================================= */
 
   const signOut = async () => {
-    const {
-      error,
-    } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     setUser(null);
     setProfile(null);
+    setBan(null);
+    setBanCheckError(false);
+    setBanLoading(false);
     setLoading(false);
   };
 
@@ -798,46 +627,25 @@ export function AuthProvider({ children }) {
   ========================================================= */
 
   const value = {
-    /*
-     * Main authenticated Supabase user.
-     */
     user,
-
-    /*
-     * Alias for components/services that use
-     * "currentUser".
-     *
-     * This is particularly useful for the messaging
-     * service.
-     */
     currentUser: user,
-
-    /*
-     * Database profile.
-     */
     profile,
-
-    /*
-     * Authentication loading state.
-     */
     loading,
 
-    /*
-     * Authentication functions.
-     */
+    // Ban information
+    ban,
+    banLoading,
+    banCheckError,
+    checkUserBan,
+
+    // Authentication
     signUp,
     signIn,
     signOut,
 
-    /*
-     * Profile functions.
-     */
+    // Profile
     getProfile,
     uploadProfileImage,
-
-    /*
-     * Allows profile updates from components.
-     */
     setProfile,
   };
 
@@ -853,8 +661,7 @@ export function AuthProvider({ children }) {
 ========================================================= */
 
 export function useAuth() {
-  const context =
-    useContext(AuthContext);
+  const context = useContext(AuthContext);
 
   if (!context) {
     throw new Error(

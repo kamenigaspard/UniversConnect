@@ -1,25 +1,3 @@
-// ============================================================
-// src/components/PostCard.jsx
-// ============================================================
-//
-// This component displays one post in the university feed.
-//
-// Features:
-// 1. Display post text.
-// 2. Display image/video with a subtle background gradient and rounded corners.
-// 3. Like/unlike.
-// 4. Display comment count.
-// 5. Open comments in a separate modal.
-// 6. Allow the owner to edit the post.
-// 7. Allow text, image and video editing.
-// 8. Allow the owner to delete the post.
-// 9. Allow other users to report the post.
-// 10. Share the post.
-//
-// IMPORTANT:
-// Editing is allowed only during the first 15 minutes.
-// The database should also enforce this rule with RLS.
-// ============================================================
 
 import React, {
   useEffect,
@@ -27,283 +5,151 @@ import React, {
   useState,
 } from "react";
 
-import {
-  Heart,
-  MessageCircle,
-  Share2,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  Flag,
-  X,
-  Check,
-  Image as ImageIcon,
-  Video,
-} from "lucide-react";
-
-import CommentSection from "./CommentSection";
-
 import { supabase } from "../lib/supabase";
 
+import PostHeader from "./post/PostHeader";
+import PostContent from "./post/PostContent";
+import PostMedia from "./post/PostMedia";
+import PostActions from "./post/PostActions";
+import EditPostModal from "./post/EditPostModal";
+import CommentsModal from "./post/CommentsModal";
+import ReportPostModal from "./post/ReportPostModal";
 
 // ============================================================
-// EDIT CONFIGURATION
+// CONFIGURATION
 // ============================================================
 
-// Number of minutes during which the owner can edit a post.
 const EDIT_WINDOW_MINUTES = 15;
-
-// Convert minutes into milliseconds.
-// JavaScript Date calculations use milliseconds.
-const EDIT_WINDOW_MS =
-  EDIT_WINDOW_MINUTES * 60 * 1000;
-
+const EDIT_WINDOW_MS = EDIT_WINDOW_MINUTES * 60 * 1000;
 
 // ============================================================
 // STORAGE HELPER
 // ============================================================
 
 const getStoragePathFromPublicUrl = (url) => {
-
-  // No URL means there is nothing to remove.
-  if (!url) {
-    return null;
-  }
+  if (!url) return null;
 
   try {
+    const marker = "/storage/v1/object/public/post-media/";
+    const index = url.indexOf(marker);
 
-    const marker =
-      "/storage/v1/object/public/post-media/";
-
-    const index =
-      url.indexOf(marker);
-
-    // URL doesn't belong to our post-media bucket.
-    if (index === -1) {
-      return null;
-    }
+    if (index === -1) return null;
 
     return decodeURIComponent(
-      url.substring(
-        index + marker.length
-      )
+      url.substring(index + marker.length)
     );
-
   } catch (error) {
-
-    console.error(
-      "Could not extract storage path:",
-      error
-    );
-
+    console.error("Could not extract storage path:", error);
     return null;
   }
 };
 
-
 // ============================================================
-// POST CARD COMPONENT
+// POST CARD
 // ============================================================
 
 const PostCard = ({
   post,
   currentUserId,
-
   onPostUpdated = () => {},
   onPostDeleted = () => {},
 }) => {
-
-
-  // ============================================================
+  // ----------------------------------------------------------
   // LIKE STATES
-  // ============================================================
+  // ----------------------------------------------------------
 
-  const [isLiked, setIsLiked] =
-    useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [liking, setLiking] = useState(false);
 
-  const [likeCount, setLikeCount] =
-    useState(0);
-
-  const [liking, setLiking] =
-    useState(false);
-
-
-  // ============================================================
+  // ----------------------------------------------------------
   // COMMENT STATES
-  // ============================================================
+  // ----------------------------------------------------------
 
-  const [showComments, setShowComments] =
-    useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [commentCount, setCommentCount] = useState(0);
 
-  const [commentCount, setCommentCount] =
-    useState(0);
+  // ----------------------------------------------------------
+  // MENU STATES
+  // ----------------------------------------------------------
 
+  const [showMenu, setShowMenu] = useState(false);
 
-  // ============================================================
-  // THREE DOT MENU
-  // ============================================================
-
-  const [showMenu, setShowMenu] =
-    useState(false);
-
-  const menuRef =
-    useRef(null);
-
-
-  // ============================================================
+  // ----------------------------------------------------------
   // EDIT STATES
-  // ============================================================
+  // ----------------------------------------------------------
 
-  const [showEditModal, setShowEditModal] =
-    useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
 
-  const [editContent, setEditContent] =
-    useState("");
+  const [editMediaFile, setEditMediaFile] = useState(null);
+  const [editMediaPreview, setEditMediaPreview] = useState(null);
+  const [removeEditMedia, setRemoveEditMedia] = useState(false);
 
-  const [savingEdit, setSavingEdit] =
-    useState(false);
+  const previewUrlRef = useRef(null);
 
-  const [editError, setEditError] =
-    useState("");
-
-
-  // ============================================================
-  // EDIT MEDIA STATES
-  // ============================================================
-
-  const [editMediaFile, setEditMediaFile] =
-    useState(null);
-
-  const [editMediaPreview, setEditMediaPreview] =
-    useState(null);
-
-  const [removeEditMedia, setRemoveEditMedia] =
-    useState(false);
-
-
-  // ============================================================
+  // ----------------------------------------------------------
   // REPORT STATES
-  // ============================================================
+  // ----------------------------------------------------------
 
-  const [showReportModal, setShowReportModal] =
-    useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [reporting, setReporting] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
+  const [reportSuccess, setReportSuccess] = useState(false);
 
-  const [reportReason, setReportReason] =
-    useState("");
+  const reportCloseTimerRef = useRef(null);
 
-  const [reportDescription, setReportDescription] =
-    useState("");
+  // ----------------------------------------------------------
+  // POST OWNERSHIP
+  // ----------------------------------------------------------
 
-  const [reporting, setReporting] =
-    useState(false);
+  const isOwner = post.author_id === currentUserId;
 
-  const [reportMessage, setReportMessage] =
-    useState("");
-
-  const [reportSuccess, setReportSuccess] =
-    useState(false);
-
-
-  // ============================================================
-  // REPORT REASONS
-  // ============================================================
-
-  const reportReasons = [
-    "Spam",
-    "Harassment",
-    "Inappropriate content",
-    "False information",
-    "Other",
-  ];
-
-
-  // ============================================================
-  // CHECK POST OWNERSHIP
-  // ============================================================
-
-  const isOwner =
-    post.author_id === currentUserId;
-
-
-  // ============================================================
-  // CHECK EDIT WINDOW
-  // ============================================================
+  // ----------------------------------------------------------
+  // EDIT PERMISSION
+  // ----------------------------------------------------------
 
   const canEditPost = () => {
+    if (!isOwner || post.is_deleted) return false;
 
-    if (!isOwner) {
-      return false;
-    }
+    const createdAt = new Date(post.created_at).getTime();
 
-    if (post.is_deleted) {
-      return false;
-    }
+    if (!Number.isFinite(createdAt)) return false;
 
-    const createdAt =
-      new Date(
-        post.created_at
-      ).getTime();
+    const elapsed = Date.now() - createdAt;
 
-    const now =
-      Date.now();
-
-    const elapsed =
-      now - createdAt;
-
-    return (
-      elapsed <= EDIT_WINDOW_MS
-    );
+    return elapsed >= 0 && elapsed <= EDIT_WINDOW_MS;
   };
 
-
-  // ============================================================
-  // CLOSE MENU WHEN CLICKING OUTSIDE
-  // ============================================================
+  // ----------------------------------------------------------
+  // CLEANUP
+  // ----------------------------------------------------------
 
   useEffect(() => {
-
-    const handleClickOutside = (event) => {
-
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(
-          event.target
-        )
-      ) {
-
-        setShowMenu(false);
-
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
       }
 
+      if (reportCloseTimerRef.current) {
+        clearTimeout(reportCloseTimerRef.current);
+      }
     };
-
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
-    );
-
-    return () => {
-
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
-      );
-
-    };
-
   }, []);
 
-
-  // ============================================================
-  // LOAD LIKE INFORMATION
-  // ============================================================
+  // ----------------------------------------------------------
+  // LOAD LIKES
+  // ----------------------------------------------------------
 
   useEffect(() => {
+    let cancelled = false;
 
     const loadLikes = async () => {
-
       try {
-
         const {
           count,
           error: countError,
@@ -313,92 +159,51 @@ const PostCard = ({
             count: "exact",
             head: true,
           })
-          .eq(
-            "post_id",
-            post.id
-          );
+          .eq("post_id", post.id);
 
+        if (countError) throw countError;
 
-        if (countError) {
-
-          console.error(
-            "Error loading likes:",
-            countError
-          );
-
-        } else {
-
-          setLikeCount(
-            count || 0
-          );
-
+        if (!cancelled) {
+          setLikeCount(count || 0);
         }
 
-
         if (currentUserId) {
-
           const {
             data,
             error,
           } = await supabase
             .from("likes")
             .select("id")
-            .eq(
-              "post_id",
-              post.id
-            )
-            .eq(
-              "user_id",
-              currentUserId
-            )
+            .eq("post_id", post.id)
+            .eq("user_id", currentUserId)
             .maybeSingle();
 
+          if (error) throw error;
 
-          if (error) {
-
-            console.error(
-              "Error checking like:",
-              error
-            );
-
-          } else {
-
-            setIsLiked(
-              Boolean(data)
-            );
-
+          if (!cancelled) {
+            setIsLiked(Boolean(data));
           }
-
+        } else if (!cancelled) {
+          setIsLiked(false);
         }
-
       } catch (error) {
-
-        console.error(
-          "Unexpected like error:",
-          error
-        );
-
+        console.error("Error loading likes:", error);
       }
-
     };
-
 
     loadLikes();
 
-  }, [
-    post.id,
-    currentUserId,
-  ]);
+    return () => {
+      cancelled = true;
+    };
+  }, [post.id, currentUserId]);
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // LOAD COMMENT COUNT
-  // ============================================================
+  // ----------------------------------------------------------
 
   const loadCommentCount = async () => {
-
     try {
-
       const {
         count,
         error,
@@ -408,212 +213,123 @@ const PostCard = ({
           count: "exact",
           head: true,
         })
-        .eq(
-          "post_id",
-          post.id
-        )
-        .eq(
-          "is_deleted",
-          false
-        );
+        .eq("post_id", post.id)
+        .eq("is_deleted", false);
 
+      if (error) throw error;
 
-      if (error) {
-
-        console.error(
-          "Error loading comment count:",
-          error
-        );
-
-        return;
-
-      }
-
-
-      setCommentCount(
-        count || 0
-      );
-
+      setCommentCount(count || 0);
     } catch (error) {
-
-      console.error(
-        "Unexpected comment count error:",
-        error
-      );
-
+      console.error("Error loading comment count:", error);
     }
-
   };
-
 
   useEffect(() => {
+    let cancelled = false;
 
-    loadCommentCount();
+    const loadCount = async () => {
+      try {
+        const {
+          count,
+          error,
+        } = await supabase
+          .from("comments")
+          .select("*", {
+            count: "exact",
+            head: true,
+          })
+          .eq("post_id", post.id)
+          .eq("is_deleted", false);
 
+        if (error) throw error;
+
+        if (!cancelled) {
+          setCommentCount(count || 0);
+        }
+      } catch (error) {
+        console.error("Error loading comment count:", error);
+      }
+    };
+
+    loadCount();
+
+    return () => {
+      cancelled = true;
+    };
   }, [post.id]);
 
-
-  const closeComments = () => {
-    setShowComments(false);
-  };
-
-
-  // ============================================================
+  // ----------------------------------------------------------
   // COMMENT COUNT CALLBACK
-  // ============================================================
+  // ----------------------------------------------------------
 
-  const handleCommentCountChange = (
-    change
-  ) => {
+  const handleCommentCountChange = (change) => {
+    if (typeof change === "number" && change > 1) {
+      setCommentCount(change);
+      return;
+    }
 
-    if (
-      typeof change === "number" &&
-      change > 1
-    ) {
-
-      setCommentCount(
-        change
+    if (change === 1 || change === -1) {
+      setCommentCount((previous) =>
+        Math.max(previous + change, 0)
       );
 
       return;
     }
-
-
-    if (
-      change === 1 ||
-      change === -1
-    ) {
-
-      setCommentCount(
-        (previous) =>
-          Math.max(
-            previous + change,
-            0
-          )
-      );
-
-      return;
-    }
-
 
     loadCommentCount();
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // LIKE / UNLIKE
-  // ============================================================
+  // ----------------------------------------------------------
 
   const handleLike = async () => {
-
-    if (
-      !currentUserId ||
-      liking
-    ) {
-
-      return;
-
-    }
-
+    if (!currentUserId || liking) return;
 
     setLiking(true);
 
-
     try {
-
       if (isLiked) {
-
-        const {
-          error,
-        } = await supabase
+        const { error } = await supabase
           .from("likes")
           .delete()
-          .eq(
-            "post_id",
-            post.id
-          )
-          .eq(
-            "user_id",
-            currentUserId
-          );
+          .eq("post_id", post.id)
+          .eq("user_id", currentUserId);
 
-
-        if (error) {
-          throw error;
-        }
-
+        if (error) throw error;
 
         setIsLiked(false);
 
-        setLikeCount(
-          (previous) =>
-            Math.max(
-              previous - 1,
-              0
-            )
+        setLikeCount((previous) =>
+          Math.max(previous - 1, 0)
         );
-
       } else {
-
-        const {
-          error,
-        } = await supabase
+        const { error } = await supabase
           .from("likes")
           .insert({
-
-            post_id:
-              post.id,
-
-            user_id:
-              currentUserId,
-
+            post_id: post.id,
+            user_id: currentUserId,
           });
 
-
-        if (error) {
-          throw error;
-        }
-
+        if (error) throw error;
 
         setIsLiked(true);
-
-        setLikeCount(
-          (previous) =>
-            previous + 1
-        );
-
+        setLikeCount((previous) => previous + 1);
       }
-
     } catch (error) {
-
-      console.error(
-        "Like error:",
-        error
-      );
-
-      alert(
-        error.message ||
-        "Unable to update like."
-      );
-
+      console.error("Like error:", error);
+      alert(error.message || "Unable to update like.");
     } finally {
-
       setLiking(false);
-
     }
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // OPEN EDIT MODAL
-  // ============================================================
+  // ----------------------------------------------------------
 
   const handleOpenEdit = () => {
-
     if (!canEditPost()) {
-
       setShowMenu(false);
 
       alert(
@@ -621,48 +337,42 @@ const PostCard = ({
       );
 
       return;
-
     }
 
-
-    setEditContent(
-      post.content || ""
-    );
-
-
+    setEditContent(post.content || "");
     setEditMediaFile(null);
-
     setEditMediaPreview(null);
-
     setRemoveEditMedia(false);
-
     setEditError("");
-
-
     setShowMenu(false);
-
-
     setShowEditModal(true);
-
   };
 
+  // ----------------------------------------------------------
+  // REMOVE PREVIEW
+  // ----------------------------------------------------------
 
-  // ============================================================
-  // SELECT NEW IMAGE OR VIDEO
-  // ============================================================
-
-  const handleEditMediaChange = (
-    event
-  ) => {
-
-    const file =
-      event.target.files?.[0];
-
-
-    if (!file) {
-      return;
+  const clearMediaPreview = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
     }
 
+    setEditMediaFile(null);
+    setEditMediaPreview(null);
+  };
+
+  // ----------------------------------------------------------
+  // SELECT NEW IMAGE OR VIDEO
+  // ----------------------------------------------------------
+
+  const handleEditMediaChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    // Allow selecting the same file again.
+    event.target.value = "";
 
     const allowedImageTypes = [
       "image/jpeg",
@@ -671,318 +381,158 @@ const PostCard = ({
       "image/gif",
     ];
 
-
     const allowedVideoTypes = [
       "video/mp4",
       "video/webm",
       "video/quicktime",
     ];
 
+    const isImage = allowedImageTypes.includes(file.type);
+    const isVideo = allowedVideoTypes.includes(file.type);
 
-    if (
-      !allowedImageTypes.includes(
-        file.type
-      ) &&
-      !allowedVideoTypes.includes(
-        file.type
-      )
-    ) {
-
+    if (!isImage && !isVideo) {
       setEditError(
         "Please select a JPG, PNG, WEBP or GIF image, or an MP4, WEBM or MOV video."
       );
 
       return;
-
     }
 
-
-    if (
-      allowedImageTypes.includes(
-        file.type
-      ) &&
-      file.size >
-        10 * 1024 * 1024
-    ) {
-
-      setEditError(
-        "Images must be smaller than 10 MB."
-      );
-
+    if (isImage && file.size > 10 * 1024 * 1024) {
+      setEditError("Images must be smaller than 10 MB.");
       return;
-
     }
 
-
-    if (
-      allowedVideoTypes.includes(
-        file.type
-      ) &&
-      file.size >
-        100 * 1024 * 1024
-    ) {
-
-      setEditError(
-        "Videos must be smaller than 100 MB."
-      );
-
+    if (isVideo && file.size > 100 * 1024 * 1024) {
+      setEditError("Videos must be smaller than 100 MB.");
       return;
-
     }
 
+    clearMediaPreview();
 
-    if (editMediaPreview) {
+    const previewUrl = URL.createObjectURL(file);
 
-      URL.revokeObjectURL(
-        editMediaPreview
-      );
+    previewUrlRef.current = previewUrl;
 
-    }
-
-
-    setEditMediaFile(
-      file
-    );
-
-
-    setRemoveEditMedia(
-      false
-    );
-
-
-    const previewUrl =
-      URL.createObjectURL(
-        file
-      );
-
-
-    setEditMediaPreview(
-      previewUrl
-    );
-
-
+    setEditMediaFile(file);
+    setEditMediaPreview(previewUrl);
+    setRemoveEditMedia(false);
     setEditError("");
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // CLOSE EDIT MODAL
-  // ============================================================
+  // ----------------------------------------------------------
 
   const handleCloseEdit = () => {
+    if (savingEdit) return;
 
-    if (savingEdit) {
-      return;
-    }
-
-
-    if (editMediaPreview) {
-
-      URL.revokeObjectURL(
-        editMediaPreview
-      );
-
-    }
-
+    clearMediaPreview();
 
     setShowEditModal(false);
-
     setEditContent("");
-
-    setEditMediaFile(null);
-
-    setEditMediaPreview(null);
-
     setRemoveEditMedia(false);
-
     setEditError("");
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // SAVE EDITED POST
-  // ============================================================
+  // ----------------------------------------------------------
 
-  const handleSaveEdit = async (
-    event
-  ) => {
-
+  const handleSaveEdit = async (event) => {
     event.preventDefault();
 
-
     if (!isOwner) {
-
-      setEditError(
-        "You can only edit your own posts."
-      );
-
+      setEditError("You can only edit your own posts.");
       return;
-
     }
-
 
     if (!canEditPost()) {
-
-      setEditError(
-        "The 15-minute editing period has expired."
-      );
-
+      setEditError("The 15-minute editing period has expired.");
       return;
-
     }
 
+    const cleanedContent = editContent.trim();
 
-    const cleanedContent =
-      editContent.trim();
+    const existingMediaStillExists = Boolean(
+      post.media_url && !removeEditMedia
+    );
 
-
-    const existingMediaStillExists =
-      Boolean(
-        post.media_url &&
-        !removeEditMedia
-      );
-
-    const newMediaSelected =
-      Boolean(
-        editMediaFile
-      );
-
+    const newMediaSelected = Boolean(editMediaFile);
 
     if (
       !cleanedContent &&
       !existingMediaStillExists &&
       !newMediaSelected
     ) {
-
       setEditError(
         "Your post must contain text, an image, or a video."
       );
 
       return;
-
     }
 
-
     setSavingEdit(true);
-
     setEditError("");
 
-
-    let uploadedMediaPath =
-      null;
-
+    let uploadedMediaPath = null;
 
     try {
-
-      let newMediaUrl =
-        null;
-
-      let newMediaType =
-        null;
-
+      let newMediaUrl = null;
+      let newMediaType = null;
 
       if (editMediaFile) {
-
-        newMediaType =
-          editMediaFile.type.startsWith(
-            "image/"
-          )
-            ? "image"
-            : "video";
-
+        newMediaType = editMediaFile.type.startsWith("image/")
+          ? "image"
+          : "video";
 
         const fileExtension =
           editMediaFile.name
             .split(".")
             .pop()
-            ?.toLowerCase() ||
-          "file";
-
+            ?.toLowerCase() || "file";
 
         const fileName =
           `${crypto.randomUUID()}.${fileExtension}`;
 
-
         uploadedMediaPath =
           `${currentUserId}/${fileName}`;
 
+        const { error: uploadError } =
+          await supabase.storage
+            .from("post-media")
+            .upload(
+              uploadedMediaPath,
+              editMediaFile,
+              {
+                cacheControl: "3600",
+                upsert: false,
+                contentType: editMediaFile.type,
+              }
+            );
 
-        const {
-          error: uploadError,
-        } = await supabase.storage
-          .from("post-media")
-          .upload(
-            uploadedMediaPath,
-            editMediaFile,
-            {
-              cacheControl:
-                "3600",
+        if (uploadError) throw uploadError;
 
-              upsert:
-                false,
+        const { data: publicUrlData } =
+          supabase.storage
+            .from("post-media")
+            .getPublicUrl(uploadedMediaPath);
 
-              contentType:
-                editMediaFile.type,
-            }
-          );
-
-
-        if (uploadError) {
-          throw uploadError;
-        }
-
-
-        const {
-          data:
-            publicUrlData,
-        } = supabase.storage
-          .from("post-media")
-          .getPublicUrl(
-            uploadedMediaPath
-          );
-
-
-        newMediaUrl =
-          publicUrlData.publicUrl;
-
+        newMediaUrl = publicUrlData.publicUrl;
       }
 
-
-      let finalMediaUrl =
-        post.media_url ||
-        null;
-
-      let finalMediaType =
-        post.media_type ||
-        null;
-
+      let finalMediaUrl = post.media_url || null;
+      let finalMediaType = post.media_type || null;
 
       if (editMediaFile) {
-
-        finalMediaUrl =
-          newMediaUrl;
-
-        finalMediaType =
-          newMediaType;
-
+        finalMediaUrl = newMediaUrl;
+        finalMediaType = newMediaType;
       }
 
-
-      if (
-        removeEditMedia &&
-        !editMediaFile
-      ) {
-
-        finalMediaUrl =
-          null;
-
-        finalMediaType =
-          null;
-
+      if (removeEditMedia && !editMediaFile) {
+        finalMediaUrl = null;
+        finalMediaType = null;
       }
-
 
       const {
         data,
@@ -990,445 +540,234 @@ const PostCard = ({
       } = await supabase
         .from("posts")
         .update({
-
-          content:
-            cleanedContent ||
-            null,
-
-          media_url:
-            finalMediaUrl,
-
-          media_type:
-            finalMediaType,
-
-          edited_at:
-            new Date().toISOString(),
-
+          content: cleanedContent || null,
+          media_url: finalMediaUrl,
+          media_type: finalMediaType,
+          edited_at: new Date().toISOString(),
         })
-        .eq(
-          "id",
-          post.id
-        )
-        .eq(
-          "author_id",
-          currentUserId
-        )
+        .eq("id", post.id)
+        .eq("author_id", currentUserId)
         .select()
         .single();
 
+      if (updateError) throw updateError;
 
-      if (updateError) {
-
-        if (uploadedMediaPath) {
-
-          await supabase.storage
-            .from("post-media")
-            .remove([
-              uploadedMediaPath,
-            ]);
-
-        }
-
-        throw updateError;
-
-      }
-
-
+      // Delete the old media only after the post update succeeds.
       if (
         post.media_url &&
-        (
-          editMediaFile ||
-          removeEditMedia
-        )
+        (editMediaFile || removeEditMedia)
       ) {
-
         const oldMediaPath =
-          getStoragePathFromPublicUrl(
-            post.media_url
-          );
-
+          getStoragePathFromPublicUrl(post.media_url);
 
         if (oldMediaPath) {
-
-          const {
-            error:
-              removeError,
-          } = await supabase.storage
-            .from("post-media")
-            .remove([
-              oldMediaPath,
-            ]);
-
+          const { error: removeError } =
+            await supabase.storage
+              .from("post-media")
+              .remove([oldMediaPath]);
 
           if (removeError) {
-
             console.warn(
               "Old media could not be removed:",
               removeError
             );
-
           }
-
         }
-
       }
-
 
       if (data) {
-
-        onPostUpdated(
-          data
-        );
-
+        onPostUpdated(data);
       }
 
-
-      if (editMediaPreview) {
-
-        URL.revokeObjectURL(
-          editMediaPreview
-        );
-
-      }
-
+      clearMediaPreview();
 
       setShowEditModal(false);
-
       setEditContent("");
-
-      setEditMediaFile(null);
-
-      setEditMediaPreview(null);
-
       setRemoveEditMedia(false);
-
       setEditError("");
 
-
-      alert(
-        "Post updated successfully."
-      );
-
-
+      alert("Post updated successfully.");
     } catch (error) {
+      console.error("Edit post error:", error);
 
-      console.error(
-        "Edit post error:",
-        error
-      );
+      // Remove a newly uploaded file if the database update fails.
+      if (uploadedMediaPath) {
+        const { error: cleanupError } =
+          await supabase.storage
+            .from("post-media")
+            .remove([uploadedMediaPath]);
 
+        if (cleanupError) {
+          console.warn(
+            "Uploaded media cleanup failed:",
+            cleanupError
+          );
+        }
+      }
 
       setEditError(
-        error.message ||
-        "Unable to update your post."
+        error.message || "Unable to update your post."
       );
-
     } finally {
-
       setSavingEdit(false);
-
     }
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // DELETE POST
-  // ============================================================
+  // ----------------------------------------------------------
 
   const handleDelete = async () => {
-
     setShowMenu(false);
 
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this post?"
+    );
 
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this post?"
-      );
-
-
-    if (!confirmed) {
-      return;
-    }
-
+    if (!confirmed) return;
 
     try {
-
       const {
         data,
         error,
       } = await supabase
         .from("posts")
         .update({
-
-          is_deleted:
-            true,
-
+          is_deleted: true,
         })
-        .eq(
-          "id",
-          post.id
-        )
-        .eq(
-          "author_id",
-          currentUserId
-        )
+        .eq("id", post.id)
+        .eq("author_id", currentUserId)
         .select()
         .single();
 
+      if (error) throw error;
 
-      if (error) {
-        throw error;
-      }
+      onPostDeleted(post.id, data);
 
-
-      onPostDeleted(
-        post.id,
-        data
-      );
-
-
-      alert(
-        "Post deleted successfully."
-      );
-
-
+      alert("Post deleted successfully.");
     } catch (error) {
-
-      console.error(
-        "Delete post error:",
-        error
-      );
-
+      console.error("Delete post error:", error);
 
       alert(
-        error.message ||
-        "Unable to delete post."
+        error.message || "Unable to delete post."
       );
-
     }
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // SHARE POST
-  // ============================================================
+  // ----------------------------------------------------------
 
   const handleShare = async () => {
-
     const postUrl =
       `${window.location.origin}/post/${post.id}`;
 
-
     try {
-
-      if (
-        navigator.share
-      ) {
-
+      if (navigator.share) {
         await navigator.share({
-
-          title:
-            "University Social",
-
-          text:
-            "Check out this post.",
-
-          url:
-            postUrl,
-
+          title: "University Social",
+          text: "Check out this post.",
+          url: postUrl,
         });
 
         return;
-
       }
 
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(postUrl);
 
-      if (
-        navigator.clipboard
-      ) {
-
-        await navigator.clipboard.writeText(
-          postUrl
-        );
-
-        alert(
-          "Post link copied!"
-        );
+        alert("Post link copied!");
 
         return;
-
       }
 
-
-      alert(
-        `Post link: ${postUrl}`
-      );
-
+      alert(`Post link: ${postUrl}`);
     } catch (error) {
-
-      if (
-        error.name !==
-        "AbortError"
-      ) {
-
-        console.error(
-          "Share error:",
-          error
-        );
-
+      if (error.name !== "AbortError") {
+        console.error("Share error:", error);
       }
-
     }
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // OPEN REPORT MODAL
-  // ============================================================
+  // ----------------------------------------------------------
 
   const handleOpenReport = () => {
-
     if (isOwner) {
-
-      alert(
-        "You cannot report your own post."
-      );
-
+      alert("You cannot report your own post.");
       setShowMenu(false);
-
       return;
-
     }
-
 
     setShowMenu(false);
-
     setReportReason("");
-
     setReportDescription("");
-
     setReportMessage("");
-
     setReportSuccess(false);
-
     setShowReportModal(true);
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // CLOSE REPORT MODAL
-  // ============================================================
+  // ----------------------------------------------------------
 
   const handleCloseReport = () => {
+    if (reporting) return;
 
-    if (reporting) {
-      return;
+    if (reportCloseTimerRef.current) {
+      clearTimeout(reportCloseTimerRef.current);
+      reportCloseTimerRef.current = null;
     }
-
 
     setShowReportModal(false);
-
     setReportReason("");
-
     setReportDescription("");
-
     setReportMessage("");
-
     setReportSuccess(false);
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // SUBMIT REPORT
-  // ============================================================
+  // ----------------------------------------------------------
 
-  const handleSubmitReport = async (
-    event
-  ) => {
-
+  const handleSubmitReport = async (event) => {
     event.preventDefault();
 
-
     if (!reportReason) {
-
-      setReportMessage(
-        "Please select a reason."
-      );
-
+      setReportMessage("Please select a reason.");
       setReportSuccess(false);
-
       return;
-
     }
-
 
     if (!currentUserId) {
-
-      setReportMessage(
-        "You must be logged in."
-      );
-
+      setReportMessage("You must be logged in.");
       setReportSuccess(false);
-
       return;
-
     }
-
 
     if (isOwner) {
-
-      setReportMessage(
-        "You cannot report your own post."
-      );
-
+      setReportMessage("You cannot report your own post.");
       setReportSuccess(false);
-
       return;
-
     }
 
-
     setReporting(true);
-
     setReportMessage("");
 
-
     try {
-
-      const {
-        error,
-      } = await supabase
+      const { error } = await supabase
         .from("reports")
         .insert({
-
-          reporter_id:
-            currentUserId,
-
-          reported_user_id:
-            post.author_id,
-
-          post_id:
-            post.id,
-
-          reason:
-            reportReason,
-
-          description:
-            reportDescription.trim() ||
-            null,
-
+          reporter_id: currentUserId,
+          reported_user_id: post.author_id,
+          post_id: post.id,
+          reason: reportReason,
+          description: reportDescription.trim() || null,
+          // status defaults to 'pending' in Supabase.
         });
 
-
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
 
       setReportSuccess(true);
 
@@ -1436,972 +775,100 @@ const PostCard = ({
         "Thank you. Your report has been submitted."
       );
 
-
-      setTimeout(() => {
-
+      reportCloseTimerRef.current = setTimeout(() => {
         setShowReportModal(false);
-
         setReportMessage("");
-
         setReportSuccess(false);
-
+        reportCloseTimerRef.current = null;
       }, 1800);
-
-
     } catch (error) {
-
-      console.error(
-        "Report error:",
-        error
-      );
-
+      console.error("Report error:", error);
 
       setReportSuccess(false);
 
       setReportMessage(
-        error.message ||
-        "Unable to submit report."
+        error.message || "Unable to submit report."
       );
-
     } finally {
-
       setReporting(false);
-
     }
-
   };
 
-
-  // ============================================================
+  // ----------------------------------------------------------
   // RENDER
-  // ============================================================
+  // ----------------------------------------------------------
 
   return (
     <>
-
-      {/* ======================================================
-          MAIN POST CARD
-          ====================================================== */}
-
-      <article className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-
-        {/* ====================================================
-            POST HEADER
-            ==================================================== */}
-
-        <div className="flex items-center justify-between p-4">
-
-          <div className="flex items-center gap-3">
-
-            <img
-              src={
-                post.profiles?.avatar_url ||
-                "/default-avatar.png"
-              }
-              alt={
-                post.profiles?.full_name ||
-                "User"
-              }
-              className="w-10 h-10 rounded-full object-cover"
-            />
-
-            <div>
-
-              <h3 className="font-semibold text-gray-900">
-
-                {post.profiles?.full_name ||
-                  "University User"}
-
-              </h3>
-
-
-              {post.profiles?.username && (
-
-                <p className="text-sm text-gray-500">
-
-                  @{post.profiles.username}
-
-                </p>
-
-              )}
-
-            </div>
-
-          </div>
-
-
-          {/* ==================================================
-              THREE-DOT MENU
-              ================================================== */}
-
-          <div
-            className="relative"
-            ref={menuRef}
-          >
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowMenu(
-                  (previous) =>
-                    !previous
-                )
-              }
-              className="p-2 rounded-full hover:bg-gray-100"
-              aria-label="Post options"
-            >
-
-              <MoreHorizontal
-                size={20}
-              />
-
-            </button>
-
-
-            {showMenu && (
-
-              <div className="absolute right-0 top-11 z-30 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-
-                {isOwner ? (
-
-                  <>
-
-                    {canEditPost() && (
-
-                      <button
-                        type="button"
-                        onClick={
-                          handleOpenEdit
-                        }
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left"
-                      >
-
-                        <Pencil
-                          size={17}
-                        />
-
-                        <div>
-
-                          <span>
-                            Edit post
-                          </span>
-
-                          <p className="text-xs text-gray-400">
-                            Available for 15 minutes
-                          </p>
-
-                        </div>
-
-                      </button>
-
-                    )}
-
-
-                    <button
-                      type="button"
-                      onClick={
-                        handleDelete
-                      }
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 text-red-600 text-left"
-                    >
-
-                      <Trash2
-                        size={17}
-                      />
-
-                      <span>
-                        Delete post
-                      </span>
-
-                    </button>
-
-                  </>
-
-                ) : (
-
-                  <button
-                    type="button"
-                    onClick={
-                      handleOpenReport
-                    }
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-left"
-                  >
-
-                    <Flag
-                      size={17}
-                    />
-
-                    <span>
-                      Report post
-                    </span>
-
-                  </button>
-
-                )}
-
-              </div>
-
-            )}
-
-          </div>
-
-        </div>
-
-
-        {/* ====================================================
-            TEXT CONTENT
-            ==================================================== */}
-
-        {post.content && (
-
-          <div className="px-4 pb-3">
-
-            <p className="text-gray-800 whitespace-pre-wrap">
-
-              {post.content}
-
-            </p>
-
-
-            {post.edited_at && (
-
-              <p className="text-xs text-gray-400 mt-2">
-
-                Edited
-
-              </p>
-
-            )}
-
-          </div>
-
-        )}
-
-
-        {/* ====================================================
-            POST MEDIA (IMAGE / VIDEO) WITH GRADIENT BACKGROUND
-            ==================================================== */}
-
-        {post.media_url && (
-
-          <div className="mx-4 mb-4 
-          overflow-hidden 
-          rounded-xl 
-          bg-gradient-to-tr from-slate-100 via-blue-50 to-indigo-100 p-1 shadow-inner">
-
-            {post.media_type === "video" ? (
-
-              <video
-                src={post.media_url}
-                controls
-                playsInline
-                className="w-full max-h-[400px] rounded-lg object-cover bg-black"
-              />
-
-            ) : (
-
-              <img
-                src={post.media_url}
-                alt="Post media"
-                loading="lazy"
-                className="w-full max-h-[600px] rounded-lg object-cover shadow-sm transition-transform duration-300 hover:scale-[1.01]"
-              />
-
-            )}
-
-          </div>
-
-        )}
-
-
-        {/* ====================================================
-            POST ACTIONS
-            ==================================================== */}
-
-        <div className="flex items-center px-4 py-3 border-t border-gray-100">
-
-          <div className="flex items-center gap-5">
-
-            {/* LIKE */}
-
-            <button
-              type="button"
-              onClick={handleLike}
-              disabled={liking}
-              className={`flex items-center gap-2 ${
-                isLiked
-                  ? "text-red-500"
-                  : "text-gray-600"
-              }`}
-            >
-
-              <Heart
-                size={22}
-                fill={
-                  isLiked
-                    ? "currentColor"
-                    : "none"
-                }
-              />
-
-              <span>
-                {likeCount}
-              </span>
-              <span>
-                Like
-              </span>
-
-            </button>
-
-
-            {/* COMMENT */}
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowComments(true)
-              }
-              className="flex items-center gap-2 text-gray-600"
-            >
-
-              <MessageCircle
-                size={22}
-              />
-
-              <span>
-                {commentCount}
-              </span>
-              <span>
-                Comment
-              </span>
-
-            </button>
-
-
-            {/* SHARE */}
-
-            <button
-              type="button"
-              onClick={handleShare}
-              className="flex items-center gap-2 text-gray-600 transition hover:text-green-600"
-            >
-
-              <Share2 size={21} />
-
-              <span >
-                Share
-              </span>
-
-            </button>
-
-          </div>
-
-        </div>
-
+      <article className="glass-card overflow-hidden">
+        <PostHeader
+          post={post}
+          isOwner={isOwner}
+          canEdit={canEditPost()}
+          showMenu={showMenu}
+          setShowMenu={setShowMenu}
+          onEdit={handleOpenEdit}
+          onDelete={handleDelete}
+          onReport={handleOpenReport}
+        />
+
+        <PostContent post={post} />
+
+        <PostMedia post={post} />
+
+        <PostActions
+          isLiked={isLiked}
+          likeCount={likeCount}
+          commentCount={commentCount}
+          liking={liking}
+          onLike={handleLike}
+          onComment={() => setShowComments(true)}
+          onShare={handleShare}
+        />
       </article>
 
-
-      {/* ======================================================
-          EDIT POST MODAL
-          ====================================================== */}
-
       {showEditModal && (
-
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-
-          <div className="bg-white w-full max-w-lg max-h-[90vh] rounded-2xl shadow-xl overflow-y-auto">
-
-            <div className="flex items-center justify-between p-5 border-b">
-
-              <div>
-
-                <h2 className="text-lg font-semibold">
-                  Edit Post
-                </h2>
-
-                <p className="text-sm text-gray-500">
-                  You can edit this post within 15 minutes of creation.
-                </p>
-
-              </div>
-
-
-              <button
-                type="button"
-                onClick={
-                  handleCloseEdit
-                }
-                disabled={savingEdit}
-                className="p-2 rounded-full hover:bg-gray-100"
-              >
-
-                <X
-                  size={20}
-                />
-
-              </button>
-
-            </div>
-
-
-            <form
-              onSubmit={
-                handleSaveEdit
-              }
-              className="p-5"
-            >
-
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-
-                Post content
-
-              </label>
-
-
-              <textarea
-                value={
-                  editContent
-                }
-                onChange={(event) =>
-                  setEditContent(
-                    event.target.value
-                  )
-                }
-                rows={6}
-                maxLength={5000}
-                className="w-full border border-gray-300 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
-                placeholder="Write your post..."
-              />
-
-
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-
-                <span>
-                  Editing window: 15 minutes
-                </span>
-
-                <span>
-                  {editContent.length}/5000
-                </span>
-
-              </div>
-
-
-              {post.media_url &&
-                !editMediaPreview &&
-                !removeEditMedia && (
-
-                <div className="mt-5">
-
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    Current media
-                  </p>
-
-
-                  {post.media_type === "image" && (
-
-                    <img
-                      src={
-                        post.media_url
-                      }
-                      alt="Current post media"
-                      className="w-full max-h-64 object-cover rounded-xl"
-                    />
-
-                  )}
-
-
-                  {post.media_type === "video" && (
-
-                    <video
-                      src={
-                        post.media_url
-                      }
-                      controls
-                      playsInline
-                      className="w-full max-h-64 rounded-xl bg-black"
-                    />
-
-                  )}
-
-                </div>
-
-              )}
-
-
-              {editMediaPreview && (
-
-                <div className="mt-5">
-
-                  <div className="flex items-center justify-between mb-2">
-
-                    <p className="text-sm font-medium text-gray-700">
-                      New media
-                    </p>
-
-
-                    <button
-                      type="button"
-                      onClick={() => {
-
-                        URL.revokeObjectURL(
-                          editMediaPreview
-                        );
-
-                        setEditMediaFile(
-                          null
-                        );
-
-                        setEditMediaPreview(
-                          null
-                        );
-
-                      }}
-                      className="text-sm text-red-600 hover:underline"
-                    >
-
-                      Remove selection
-
-                    </button>
-
-                  </div>
-
-
-                  {editMediaFile?.type.startsWith(
-                    "image/"
-                  ) && (
-
-                    <img
-                      src={
-                        editMediaPreview
-                      }
-                      alt="New media preview"
-                      className="w-full max-h-64 object-cover rounded-xl"
-                    />
-
-                  )}
-
-
-                  {editMediaFile?.type.startsWith(
-                    "video/"
-                  ) && (
-
-                    <video
-                      src={
-                        editMediaPreview
-                      }
-                      controls
-                      playsInline
-                      className="w-full max-h-64 rounded-xl bg-black"
-                    />
-
-                  )}
-
-                </div>
-
-              )}
-
-
-              {post.media_url &&
-                !editMediaFile && (
-
-                <label className="flex items-center gap-3 mt-4 text-sm text-gray-700 cursor-pointer">
-
-                  <input
-                    type="checkbox"
-                    checked={
-                      removeEditMedia
-                    }
-                    onChange={(event) =>
-                      setRemoveEditMedia(
-                        event.target.checked
-                      )
-                    }
-                    className="w-4 h-4"
-                  />
-
-                  <span>
-                    Remove current image/video
-                  </span>
-
-                </label>
-
-              )}
-
-
-              <div className="mt-5">
-
-                <p className="text-sm font-medium text-gray-700 mb-2">
-
-                  {post.media_url
-                    ? "Replace image or video"
-                    : "Add image or video"}
-
-                </p>
-
-
-                <label className="flex items-center justify-center gap-3 w-full border-2 border-dashed border-gray-300 rounded-xl p-5 cursor-pointer hover:bg-gray-50">
-
-                  <ImageIcon
-                    size={22}
-                    className="text-gray-500"
-                  />
-
-                  <Video
-                    size={22}
-                    className="text-gray-500"
-                  />
-
-                  <span className="text-sm text-gray-600">
-                    Choose image or video
-                  </span>
-
-
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
-                    onChange={
-                      handleEditMediaChange
-                    }
-                    className="hidden"
-                  />
-
-                </label>
-
-
-                <p className="text-xs text-gray-400 mt-2">
-                  Images up to 10 MB. Videos up to 100 MB.
-                </p>
-
-              </div>
-
-
-              {editError && (
-
-                <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm">
-
-                  {editError}
-
-                </div>
-
-              )}
-
-
-              <div className="flex gap-3 mt-5">
-
-                <button
-                  type="button"
-                  onClick={
-                    handleCloseEdit
-                  }
-                  disabled={savingEdit}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50"
-                >
-
-                  Cancel
-
-                </button>
-
-
-                <button
-                  type="submit"
-                  disabled={
-                    savingEdit
-                  }
-                  className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-xl hover:bg-black disabled:opacity-50"
-                >
-
-                  {savingEdit
-                    ? "Saving..."
-                    : "Save Changes"}
-
-                </button>
-
-              </div>
-
-            </form>
-
-          </div>
-
-        </div>
-
+        <EditPostModal
+          post={post}
+          editContent={editContent}
+          setEditContent={setEditContent}
+          editMediaFile={editMediaFile}
+          editMediaPreview={editMediaPreview}
+          removeEditMedia={removeEditMedia}
+          setRemoveEditMedia={setRemoveEditMedia}
+          editError={editError}
+          savingEdit={savingEdit}
+          onMediaChange={handleEditMediaChange}
+          onRemoveSelection={clearMediaPreview}
+          onClose={handleCloseEdit}
+          onSubmit={handleSaveEdit}
+        />
       )}
-
-
-      {/* ======================================================
-          COMMENTS MODAL
-          ====================================================== */}
 
       {showComments && (
-
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
-
-          <div className="bg-white w-full sm:max-w-lg max-h-[85vh] rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col">
-
-            <div className="flex items-center justify-between p-4 border-b">
-
-              <h2 className="font-semibold text-lg">
-                Comments
-              </h2>
-
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowComments(
-                    false
-                  )
-                }
-                className="p-2 rounded-full hover:bg-gray-100"
-                aria-label="Close comments"
-              >
-
-                <X
-                  size={20}
-                />
-
-              </button>
-
-            </div>
-
-
-            <div className="overflow-y-auto p-4">
-
-              <CommentSection
-                postId={
-                  post.id
-                }
-
-                currentUserId={
-                  currentUserId
-                }
-
-                onCommentCountChange={
-                  handleCommentCountChange
-                }
-               
-                onClose={closeComments}
-              />
-
-            </div>
-
-          </div>
-
-        </div>
-
+        <CommentsModal
+          postId={post.id}
+          currentUserId={currentUserId}
+          onCommentCountChange={handleCommentCountChange}
+          onClose={() => setShowComments(false)}
+        />
       )}
-
-
-      {/* ======================================================
-          REPORT MODAL
-          ====================================================== */}
 
       {showReportModal && (
-
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl">
-
-            <div className="flex items-center justify-between p-5 border-b">
-
-              <div>
-
-                <h2 className="font-semibold text-lg">
-                  Report Post
-                </h2>
-
-                <p className="text-sm text-gray-500">
-                  Tell us what is wrong with this post.
-                </p>
-
-              </div>
-
-
-              <button
-                type="button"
-                onClick={
-                  handleCloseReport
-                }
-                disabled={
-                  reporting
-                }
-                className="p-2 rounded-full hover:bg-gray-100"
-              >
-
-                <X
-                  size={20}
-                />
-
-              </button>
-
-            </div>
-
-
-            <form
-              onSubmit={
-                handleSubmitReport
-              }
-              className="p-5"
-            >
-
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-
-                Reason
-
-              </label>
-
-
-              <div className="space-y-2 mb-5">
-
-                {reportReasons.map(
-                  (reason) => (
-
-                    <label
-                      key={
-                        reason
-                      }
-                      className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer ${
-                        reportReason ===
-                        reason
-                          ? "border-gray-900 bg-gray-50"
-                          : "border-gray-200"
-                      }`}
-                    >
-
-                      <input
-                        type="radio"
-                        name="reportReason"
-                        value={
-                          reason
-                        }
-                        checked={
-                          reportReason ===
-                          reason
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setReportReason(
-                            event.target.value
-                          )
-                        }
-                      />
-
-                      <span>
-                        {reason}
-                      </span>
-
-                    </label>
-
-                  )
-                )}
-
-              </div>
-
-
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-
-                Additional information
-
-                <span className="font-normal text-gray-400">
-                  {" "}
-                  (optional)
-                </span>
-
-              </label>
-
-
-              <textarea
-                value={
-                  reportDescription
-                }
-                onChange={(
-                  event
-                ) =>
-                  setReportDescription(
-                    event.target.value
-                  )
-                }
-                rows={4}
-                maxLength={1000}
-                placeholder="Explain the problem..."
-                className="w-full border border-gray-300 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
-              />
-
-
-              {reportMessage && (
-
-                <div
-                  className={`mt-4 p-3 rounded-xl text-sm ${
-                    reportSuccess
-                      ? "bg-green-50 text-green-700"
-                      : "bg-red-50 text-red-700"
-                  }`}
-                >
-
-                  {reportSuccess && (
-
-                    <Check
-                      size={18}
-                      className="inline mr-2"
-                    />
-
-                  )}
-
-                  {reportMessage}
-
-                </div>
-
-              )}
-
-
-              <div className="flex gap-3 mt-5">
-
-                <button
-                  type="button"
-                  onClick={
-                    handleCloseReport
-                  }
-                  disabled={
-                    reporting
-                  }
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50"
-                >
-
-                  Cancel
-
-                </button>
-
-
-                <button
-                  type="submit"
-                  disabled={
-                    reporting ||
-                    !reportReason
-                  }
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50"
-                >
-
-                  {reporting
-                    ? "Submitting..."
-                    : "Submit Report"}
-
-                </button>
-
-              </div>
-
-            </form>
-
-          </div>
-
-        </div>
-
+        <ReportPostModal
+          reportReason={reportReason}
+          setReportReason={setReportReason}
+          reportDescription={reportDescription}
+          setReportDescription={setReportDescription}
+          reporting={reporting}
+          reportMessage={reportMessage}
+          reportSuccess={reportSuccess}
+          onClose={handleCloseReport}
+          onSubmit={handleSubmitReport}
+        />
       )}
-
     </>
-
   );
 };
-
 
 export default PostCard;

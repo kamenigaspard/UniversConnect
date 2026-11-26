@@ -359,19 +359,19 @@ export default function RequestPage() {
           )}
         </section>
       </div>
-            {/* ======================================================
-                FIXED BOTTOM NAVIGATION
-                Home | Search | Create | Requests | Profile
-                ====================================================== */}
-             <BottomNavbar
-  items={[
-    { label: "Home", path: "/teacher-home", icon: Home  },
-    { label: "Search", path: "/search", icon: Search },
-    { label: "Requests", path: "/requests", icon: Heart },
-    { label: "Profile", path: "/profile", icon: User },
-  ]}
-  createPath="/create-post"
-/>
+      {/* ======================================================
+          FIXED BOTTOM NAVIGATION
+          Home | Search | Create | Requests | Profile
+          ====================================================== */}
+        <BottomNavbar
+        items={[
+            { label: "Home", path: "/teacher-home", icon: Home },
+            { label: "Search", path: "/search", icon: Search },
+            { label: "Requests", path: "/requests", icon: Heart },
+            { label: "Settings", path: "/settings", icon: Settings },
+        ]}
+        createPath="/create-post"
+        />  
 
     </div>
   );

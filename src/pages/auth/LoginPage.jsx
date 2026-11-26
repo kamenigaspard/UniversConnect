@@ -1,6 +1,12 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Lock, Mail, ArrowRight, AlertCircle } from "lucide-react";
+import {
+  Lock,
+  Mail,
+  ArrowRight,
+  AlertCircle,
+} from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
 export default function Login() {
@@ -11,40 +17,51 @@ export default function Login() {
     email: "",
     password: "",
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
+    if (error) setError("");
   };
 
   const redirectByRole = (role) => {
-    switch (role) {
-      case "student":
-        navigate("/student-home");
-        break;    
-      case "admin":
-        navigate("/admin-home");
-        break;
-      case "teacher":
-        navigate("/teacher-home");
-        break;
-      case "super_admin":
-        navigate("/super-admin-home");
-        break;
-      default:
-        navigate("/");
+    const routes = {
+      student: "/student-home",
+      teacher: "/teacher-home",
+      admin: "/admin-home",
+      super_admin: "/super-admin-home",
+    };
+
+    const destination = routes[role];
+
+    if (!destination) {
+      throw new Error(
+        "Your account has an invalid role. Please contact the university administrator."
+      );
     }
+
+    navigate(destination, { replace: true });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
+
     setError("");
 
-    if (!formData.email || !formData.password) {
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
+    if (!email || !password) {
       setError("Please fill in all fields.");
       return;
     }
@@ -53,52 +70,70 @@ export default function Login() {
 
     try {
       const result = await signIn({
-        email: formData.email,
-        password: formData.password,
+        email,
+        password,
       });
 
-      if (result?.profile?.role) {
-        redirectByRole(result.profile.role);
-      } else {
-        navigate("/");
+      if (!result?.profile) {
+        throw new Error(
+          "Your account profile could not be loaded. Please try again."
+        );
       }
+
+      redirectByRole(result.profile.role);
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.message || "Failed to sign in. Please check your credentials.");
+
+      setError(
+        err.message ||
+          "Failed to sign in. Please check your credentials and try again."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
-      <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--page-bg)] px-4 py-12">
+      <div className="w-full max-w-md space-y-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-8 shadow-sm backdrop-blur">
+
+        {/* Header */}
         <div>
-          <h2 className="text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="text-center text-3xl font-extrabold text-[var(--text-primary)]">
             Welcome back
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+
+          <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
             Sign in to access your university account
           </p>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-600">
-            <AlertCircle size={18} className="shrink-0" />
+          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            <AlertCircle size={18} className="mt-0.5 shrink-0" />
             <p>{error}</p>
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4 rounded-md shadow-sm">
+        {/* Login Form */}
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div className="space-y-4">
+
+            {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-[var(--text-primary)]"
+              >
+                Official university email
               </label>
+
               <div className="relative mt-1">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
                   <Mail size={18} />
                 </div>
+
                 <input
                   id="email"
                   name="email"
@@ -107,17 +142,23 @@ export default function Login() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="block w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-blue-500 text-sm"
+                  disabled={loading}
+                  className="block w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] py-3 pl-10 pr-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 disabled:opacity-60"
                   placeholder="you@university.edu"
                 />
               </div>
             </div>
 
+            {/* Password */}
             <div>
               <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-[var(--text-primary)]"
+                >
                   Password
                 </label>
+
                 <Link
                   to="/forgot-password"
                   className="text-xs font-semibold text-purple-600 hover:text-purple-500"
@@ -125,10 +166,12 @@ export default function Login() {
                   Forgot your password?
                 </Link>
               </div>
+
               <div className="relative mt-1">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
                   <Lock size={18} />
                 </div>
+
                 <input
                   id="password"
                   name="password"
@@ -137,33 +180,41 @@ export default function Login() {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="block w-full rounded-lg border border-gray-300 py-3 pl-10 pr-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-blue-500 text-sm"
-                  placeholder="••••••••"
+                  disabled={loading}
+                  className="block w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] py-3 pl-10 pr-3 text-sm text-[var(--text-primary)] outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 disabled:opacity-60"
+                  placeholder="Enter your password"
                 />
               </div>
             </div>
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative flex w-full justify-center rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-            >
-              {loading ? (
-                "Signing in..."
-              ) : (
-                <span className="flex items-center gap-2">
-                  Sign in <ArrowRight size={18} />
-                </span>
-              )}
-            </button>
-          </div>
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? (
+              "Signing in..."
+            ) : (
+              <>
+                Sign in
+                <ArrowRight size={18} />
+              </>
+            )}
+          </button>
         </form>
 
+        {/* Signup Link */}
         <div className="text-center text-sm">
-          <span className="text-gray-500">Don't have an account? </span>
-          <Link to="/signup" className="font-semibold text-purple-600 hover:underline">
+          <span className="text-[var(--text-secondary)]">
+            Don't have an account?{" "}
+          </span>
+
+          <Link
+            to="/signup"
+            className="font-semibold text-purple-600 hover:underline"
+          >
             Sign up
           </Link>
         </div>
